@@ -2,7 +2,7 @@ import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { LogoMark, Logo } from "@/components/brand/logo";
-import { SidebarNav } from "@/components/dashboard/sidebar-nav";
+import { SidebarNav, SidebarNavList } from "@/components/dashboard/sidebar-nav";
 import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
 import { requireWorkspace } from "@/lib/workspace";
 import { signOutAction } from "./actions";
@@ -17,7 +17,9 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
         <Suspense fallback={<div className="h-[42px] rounded-xl border border-line" />}>
           <Workspaces />
         </Suspense>
-        <SidebarNav />
+        <Suspense fallback={<SidebarNavList pathname={null} />}>
+          <SidebarNav />
+        </Suspense>
         <div className="mt-auto">
           <Suspense fallback={<div className="h-12" />}>
             <UserMenu />
@@ -36,7 +38,9 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
             </Suspense>
           </div>
         </div>
-        <SidebarNav orientation="horizontal" />
+        <Suspense fallback={<SidebarNavList orientation="horizontal" pathname={null} />}>
+          <SidebarNav orientation="horizontal" />
+        </Suspense>
       </header>
 
       <main className="min-w-0 flex-1">

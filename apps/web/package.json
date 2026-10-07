@@ -11,7 +11,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "bun test --conditions=react-server src"
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.11.3",
@@ -25,6 +26,7 @@
     "motion": "^14.0.0",
     "next": "16.4.0",
     "next-auth": "5.0.0-beta.32",
+    "papaparse": "^5.7.0",
     "prisma": "7.10.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -34,7 +36,9 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/bun": "^1.4.2",
     "@types/node": "^20",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

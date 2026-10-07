@@ -12,15 +12,21 @@ const ITEMS = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-export function SidebarNav({ orientation = "vertical" }: { orientation?: "vertical" | "horizontal" }) {
-  const pathname = usePathname();
+type Orientation = "vertical" | "horizontal";
+
+export function SidebarNav({ orientation = "vertical" }: { orientation?: Orientation }) {
+  return <SidebarNavList orientation={orientation} pathname={usePathname()} />;
+}
+
+/** Renders without reading the URL, so it can be a Suspense fallback on dynamic routes. */
+export function SidebarNavList({ orientation = "vertical", pathname }: { orientation?: Orientation; pathname: string | null }) {
   const horizontal = orientation === "horizontal";
 
   return (
     <nav aria-label="Dashboard">
       <ul className={cn("flex gap-0.5", horizontal ? "flex-row overflow-x-auto" : "flex-col")}>
         {ITEMS.map(({ href, label, icon: Icon, exact }) => {
-          const active = exact ? pathname === href : pathname.startsWith(href);
+          const active = pathname != null && (exact ? pathname === href : pathname.startsWith(href));
           return (
             <li key={href}>
               <Link

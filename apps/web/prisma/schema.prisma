@@ -118,10 +118,13 @@ model GmailAccount {
   email                 String
   encryptedRefreshToken String
   dailyLimit            Int      @default(25)
+  /// Set when Google rejects the refresh token; sending pauses until the user reconnects.
+  needsReconnect        Boolean  @default(false)
   createdAt             DateTime @default(now())
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  campaigns Campaign[]
 
   @@unique([userId, email])
 }
@@ -135,7 +138,10 @@ model Contact {
   name        String?
   org         String?
   tags        String[]
+  /// Extra CSV columns, usable as merge fields.
+  fields      Json?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   messages  Message[]
@@ -152,19 +158,26 @@ enum CampaignStatus {
 }
 
 model Campaign {
-  id          String         @id @default(cuid())
-  workspaceId String
-  name        String
-  tag         String?
-  subject     String
-  bodyHtml    String
-  status      CampaignStatus @default(DRAFT)
-  scheduledAt DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  workspaceId    String
+  name           String
+  tag            String?
+  createdById    String
+  gmailAccountId String?
+  subject        String
+  /// Source text: blank-line paragraphs, [label](url) links, **bold**, {{merge|fallback}} fields.
+  body           String
+  trackClicks    Boolean        @default(true)
+  status         CampaignStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  messages  Message[]
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  gmailAccount GmailAccount? @relation(fields: [gmailAccountId], references: [id], onDelete: SetNull)
+  messages     Message[]
 
   @@index([workspaceId, createdAt])
 }
@@ -176,8 +189,10 @@ enum MessageSource {
 
 enum MessageStatus {
   QUEUED
+  SENDING
   SENT
   FAILED
+  CANCELLED
 }
 
 /// One email to one recipient. The token is what the pixel and links carry.
@@ -194,6 +209,8 @@ model Message {
   status         MessageStatus @default(QUEUED)
   error          String?
   gmailMessageId String?
+  /// When a queue worker claimed it; stale claims are retried.
+  claimedAt      DateTime?
   sentAt         DateTime?
   createdAt      DateTime      @default(now())
 
@@ -207,6 +224,7 @@ model Message {
   @@index([workspaceId, sentAt])
   @@index([campaignId])
   @@index([status, createdAt])
+  @@index([gmailAccountId, sentAt])
 }
 
 model Link {
