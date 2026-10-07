@@ -36,12 +36,22 @@ export async function classifyOpen(token: string, meta: RequestMeta): Promise<Cl
   if (!isValidToken(token)) return null;
   const message = await db.message.findUnique({
     where: { token },
-    select: { id: true, sentAt: true },
+    select: {
+      id: true,
+      sentAt: true,
+      _count: { select: { events: { where: { type: "OPEN", client: "gmail" } } } },
+    },
   });
   if (!message) return null;
   return {
     messageId: message.id,
-    classification: classify({ userAgent: meta.userAgent, ip: meta.ip, at: meta.at, sentAt: message.sentAt }),
+    classification: classify({
+      userAgent: meta.userAgent,
+      ip: meta.ip,
+      at: meta.at,
+      sentAt: message.sentAt,
+      priorGmailFetches: message._count.events,
+    }),
   };
 }
 

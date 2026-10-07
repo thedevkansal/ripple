@@ -12,6 +12,8 @@ export type Device = "desktop" | "mobile" | "tablet" | "unknown";
 export interface Signal {
   userAgent: string | null | undefined;
   ip?: string | null;
+  /** How many times Gmail's proxy already fetched this message's pixel. */
+  priorGmailFetches?: number;
   at: Date;
   sentAt?: Date | null;
 }
@@ -29,8 +31,11 @@ export interface Classification {
 /** Events this soon after sending are almost always scanners or the sender's own view. */
 export const PREFETCH_WINDOW_MS = 10_000;
 
-/** Gmail fetches images at delivery, a few seconds after sending. Nobody has read it yet. */
-export const GMAIL_PREFETCH_WINDOW_MS = 30_000;
+/**
+ * Gmail fetches images once at delivery, seconds after sending, before anyone can read it.
+ * Only the first Gmail fetch inside this window is that prefetch; later ones are real opens.
+ */
+export const GMAIL_DELIVERY_WINDOW_MS = 120_000;
 
 /**
  * Gmail's image proxy. It used the "GoogleImageProxy" UA for years; it now sends a fixed,
@@ -74,8 +79,11 @@ export function classify(signal: Signal): Classification {
   const ua = signal.userAgent ?? "";
   const { client, isProxy, isApplePrefetch } = detectClient(ua, signal.ip);
   const isBot = ua === "" || BOT_RE.test(ua);
-  const window = client === "gmail" ? GMAIL_PREFETCH_WINDOW_MS : PREFETCH_WINDOW_MS;
-  const tooSoon = signal.sentAt != null && signal.at.getTime() - signal.sentAt.getTime() < window;
+  const sinceSend = signal.sentAt != null ? signal.at.getTime() - signal.sentAt.getTime() : Infinity;
+  const tooSoon =
+    client === "gmail"
+      ? sinceSend < GMAIL_DELIVERY_WINDOW_MS && (signal.priorGmailFetches ?? 0) === 0
+      : sinceSend < PREFETCH_WINDOW_MS;
 
   return {
     client,

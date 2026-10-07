@@ -155,6 +155,18 @@ describe("gmail delivery prefetch", () => {
     expect(shouldWithholdPixel(c)).toBe(false);
   });
 
+  test("an instant open right after the delivery fetch still counts", () => {
+    const c = classify({
+      userAgent: NEW_UA,
+      ip: "66.249.91.171",
+      at: new Date(sentAt.getTime() + 6_000),
+      sentAt,
+      priorGmailFetches: 1,
+    });
+    expect(c.isPrefetch).toBe(false);
+    expect(shouldWithholdPixel(c)).toBe(false);
+  });
+
   test("google proxy IP alone identifies gmail", () => {
     expect(classify({ userAgent: "Mozilla/5.0 (X11)", ip: "66.102.8.1", at: new Date(), sentAt }).client).toBe("gmail");
     expect(classify({ userAgent: "Mozilla/5.0 (X11)", ip: "8.8.8.8", at: new Date(), sentAt }).client).not.toBe("gmail");
