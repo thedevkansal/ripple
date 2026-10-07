@@ -89,11 +89,38 @@ function inlineToHtml(text: string): string {
   return html + formatText(text.slice(last));
 }
 
+export interface FileCard {
+  name: string;
+  size: number;
+  url: string;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Attachment-style cards whose links get click-tracked like any other link. */
+function fileCardsHtml(files: FileCard[]): string {
+  const rows = files
+    .map(
+      (f) =>
+        `<tr><td style="padding:10px 14px;border:1px solid #dadce0;border-radius:8px;background:#f8f9fa">` +
+        `<a href="${escapeHtml(f.url)}" style="color:#1a73e8;text-decoration:none;font-weight:bold">${escapeHtml(f.name)}</a>` +
+        `<span style="color:#5f6368"> &middot; ${formatBytes(f.size)} &middot; </span>` +
+        `<a href="${escapeHtml(f.url)}" style="color:#1a73e8">View</a></td></tr>` +
+        `<tr><td style="height:6px"></td></tr>`,
+    )
+    .join("");
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 0;border-collapse:separate">${rows}</table>`;
+}
+
 /**
  * Turns the plain text an organiser writes into a simple, client-safe HTML email.
  * Blank lines make paragraphs; `[label](url)` and bare URLs become links; `**bold**` is bold.
  */
-export function textToHtml(text: string): string {
+export function textToHtml(text: string, opts: { files?: FileCard[] } = {}): string {
   const paragraphs = text
     .replace(/\r\n/g, "\n")
     .split(/\n{2,}/)
@@ -101,13 +128,16 @@ export function textToHtml(text: string): string {
     .filter(Boolean)
     .map((p) => `<p style="margin:0 0 14px">${inlineToHtml(p)}</p>`)
     .join("");
-  return `<!doctype html><html><body><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#202124">${paragraphs}</div></body></html>`;
+  const cards = opts.files?.length ? fileCardsHtml(opts.files) : "";
+  return `<!doctype html><html><body><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#202124">${paragraphs}${cards}</div></body></html>`;
 }
 
 /** Plain-text alternative part: markdown links become "label (url)". */
-export function textToPlain(text: string): string {
-  return text
+export function textToPlain(text: string, opts: { files?: FileCard[] } = {}): string {
+  const body = text
     .replace(/\r\n/g, "\n")
     .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1 ($2)")
     .replace(/\*\*([^*\n]+)\*\*/g, "$1");
+  if (!opts.files?.length) return body;
+  return `${body}\n\n${opts.files.map((f) => `${f.name} (${formatBytes(f.size)}): ${f.url}`).join("\n")}`;
 }

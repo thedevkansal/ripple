@@ -30,3 +30,25 @@ describe("buildMime", () => {
     expect(decodePart(mime, "text/html")).toBe("<p>Hi Priyā</p>");
   });
 });
+
+describe("buildMime with attachments", () => {
+  const pdf = Buffer.from("%PDF-1.7 fake brochure");
+  const mime = buildMime({
+    from: { email: "dev@gmail.com" },
+    to: { email: "p@x.com" },
+    subject: "Hi",
+    html: "<p>Hi</p>",
+    text: "Hi",
+    attachments: [{ filename: "Brochure–2026.pdf", contentType: "application/pdf", data: pdf }],
+  });
+
+  test("wraps the body in multipart/mixed with the file as an attachment", () => {
+    expect(mime).toMatch(/^Content-Type: multipart\/mixed; boundary="rpl_[0-9a-f]{24}"$/m);
+    expect(mime).toMatch(/Content-Type: multipart\/alternative; boundary="rpl_[0-9a-f]{24}"/);
+    expect(mime).toContain(
+      `Content-Disposition: attachment; filename="Brochure_2026.pdf"; filename*=UTF-8''${encodeURIComponent("Brochure–2026.pdf")}`,
+    );
+    expect(mime).toContain(pdf.toString("base64"));
+    expect(mime.trimEnd()).toMatch(/--rpl_[0-9a-f]{24}--$/);
+  });
+});

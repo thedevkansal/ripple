@@ -1,9 +1,10 @@
 import "server-only";
-import { contactVars, instrumentHtml, renderTemplate, textToHtml, textToPlain } from "@ripple/shared";
+import { contactVars } from "@ripple/shared";
 import type { Prisma } from "@/generated/prisma/client";
+import { composeEmail, createFileLoader, type FileLoader } from "@/lib/compose";
 import { db } from "@/lib/db";
 import { GmailSendError, sendViaGmail } from "@/lib/gmail-send";
-import { accessTokenFor, appUrl, GoogleAuthError } from "@/lib/google";
+import { accessTokenFor, GoogleAuthError } from "@/lib/google";
 
 const DAY_MS = 86_400_000;
 const STALE_CLAIM_MS = 10 * 60_000;
@@ -44,6 +45,7 @@ export async function processQueue({ budgetMs = 45_000 } = {}): Promise<QueueRun
   const deadline = Date.now() + budgetMs;
   const run: QueueRun = { sent: 0, failed: 0, deferred: 0 };
   const now = new Date();
+  const loadFile = createFileLoader();
 
   await db.message.updateMany({
     where: { status: "SENDING", claimedAt: { lt: new Date(Date.now() - STALE_CLAIM_MS) } },
@@ -88,10 +90,12 @@ export async function processQueue({ budgetMs = 45_000 } = {}): Promise<QueueRun
       });
       if (claimed.count === 0) continue; // another worker took it
 
-      const outcome = await sendOne(next.id, accessToken, {
-        email: account.email,
-        name: account.user.name,
-      });
+      const outcome = await sendOne(
+        next.id,
+        accessToken,
+        { email: account.email, name: account.user.name },
+        loadFile,
+      );
       if (outcome === "sent") {
         run.sent++;
         remaining--;
@@ -118,10 +122,11 @@ async function sendOne(
   messageId: string,
   accessToken: string,
   from: { email: string; name: string | null },
+  loadFile: FileLoader,
 ): Promise<Outcome> {
   const message = await db.message.findUniqueOrThrow({
     where: { id: messageId },
-    include: { campaign: true, contact: true },
+    include: { campaign: { include: { attachments: true } }, contact: true },
   });
   const campaign = message.campaign!;
   const vars = message.contact
@@ -133,27 +138,24 @@ async function sendOne(
       })
     : { email: message.toEmail };
 
-  const subject = renderTemplate(campaign.subject, vars).output;
-  const bodyText = renderTemplate(campaign.body, vars).output;
-  const { html, links } = instrumentHtml(textToHtml(bodyText), {
-    baseUrl: appUrl(),
-    token: message.token,
-    trackClicks: campaign.trackClicks,
-  });
-
-  // Links must exist before the email can be clicked. Recreate on retry.
-  await db.link.deleteMany({ where: { messageId } });
-  if (links.length) {
-    await db.link.createMany({ data: links.map((l) => ({ messageId, index: l.index, url: l.url })) });
-  }
-
+  let subject = campaign.subject;
   try {
+    const email = await composeEmail(campaign, vars, message.token, loadFile);
+    subject = email.subject;
+
+    // Links must exist before the email can be clicked. Recreate on retry.
+    await db.link.deleteMany({ where: { messageId } });
+    if (email.links.length) {
+      await db.link.createMany({ data: email.links.map((l) => ({ messageId, index: l.index, url: l.url })) });
+    }
+
     const { id } = await sendViaGmail(accessToken, {
       from,
       to: { email: message.toEmail, name: message.contact?.name },
-      subject,
-      html,
-      text: textToPlain(bodyText),
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      attachments: email.attachments,
     });
     const sentAt = new Date();
     await db.message.update({

@@ -7,6 +7,7 @@ import {
   textToHtml,
   textToPlain,
 } from "./template";
+import { instrumentHtml } from "./instrument";
 
 describe("renderTemplate", () => {
   test("fills fields, applies fallbacks, reports missing", () => {
@@ -57,5 +58,27 @@ describe("textToHtml", () => {
 
   test("plain text alternative", () => {
     expect(textToPlain("See [brief](https://e.in) **now**")).toBe("See brief (https://e.in) now");
+  });
+});
+
+describe("file cards", () => {
+  const files = [{ name: "Sponsor deck <2026>.pdf", size: 2_400_000, url: "https://x.blob.vercel-storage.com/a.pdf?v=1&d=1" }];
+
+  test("html cards link each file and escape names", () => {
+    const html = textToHtml("Hi", { files });
+    expect(html).toContain("Sponsor deck &lt;2026&gt;.pdf");
+    expect(html).toContain("2.3 MB");
+    expect(html.match(/href="https:\/\/x\.blob\.vercel-storage\.com\/a\.pdf\?v=1&amp;d=1"/g)).toHaveLength(2);
+  });
+
+  test("plain text lists files", () => {
+    expect(textToPlain("Hi", { files })).toBe(
+      "Hi\n\nSponsor deck <2026>.pdf (2.3 MB): https://x.blob.vercel-storage.com/a.pdf?v=1&d=1",
+    );
+  });
+
+  test("cards' links get click tracking", () => {
+    const { links } = instrumentHtml(textToHtml("Hi", { files }), { baseUrl: "https://r.app", token: "T" });
+    expect(links).toEqual([{ index: 0, url: files[0].url }]);
   });
 });

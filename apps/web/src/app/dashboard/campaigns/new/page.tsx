@@ -23,8 +23,11 @@ export default async function NewCampaignPage() {
             subject: "",
             body: "",
             trackClicks: true,
+            linkAttachments: true,
           }}
           initialRecipients={[]}
+          initialAttachments={[]}
+          workspaceId={workspace.id}
           accounts={accounts}
           tags={tags}
           senderName={user.name ?? ""}

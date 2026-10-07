@@ -1,17 +1,14 @@
 "use server";
 
-import {
-  contactVars,
-  generateToken,
-  renderTemplate,
-  textToHtml,
-  textToPlain,
-} from "@ripple/shared";
+import { contactVars, generateToken } from "@ripple/shared";
+import { del, head } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
+import { type AttachmentInfo, isOwnBlobUrl, MAX_TOTAL_BYTES } from "@/lib/attachments";
+import { composeEmail, createFileLoader } from "@/lib/compose";
 import { db } from "@/lib/db";
 import { GmailSendError, sendViaGmail } from "@/lib/gmail-send";
 import { accessTokenFor } from "@/lib/google";
@@ -41,10 +38,56 @@ const campaignSchema = z.object({
   recipients: z.array(recipientSchema).max(MAX_RECIPIENTS),
   /** Existing contacts picked by tag. */
   contactTags: z.array(z.string()).max(20),
+  attachmentIds: z.array(z.string()).max(10),
+  linkAttachments: z.boolean(),
 });
 export type CampaignInput = z.input<typeof campaignSchema>;
 
 export type SaveResult = { ok: true; id: string } | { ok: false; error: string };
+
+// ─── Attachments ─────────────────────────────────────────────────────
+
+const uploadedSchema = z.object({ url: z.url(), name: z.string().trim().min(1).max(200) });
+
+/** Records a file the browser just uploaded to Blob. Size and type come from Blob, not the client. */
+export async function registerAttachment(
+  input: z.input<typeof uploadedSchema>,
+): Promise<{ ok: true; attachment: AttachmentInfo } | { ok: false; error: string }> {
+  const { user, workspace } = await requireWorkspace();
+  const parsed = uploadedSchema.safeParse(input);
+  if (!parsed.success || !isOwnBlobUrl(parsed.data.url, workspace.id)) return { ok: false, error: "Upload didn't finish. Try again." };
+
+  const blob = await head(parsed.data.url).catch(() => null);
+  if (!blob) return { ok: false, error: "Upload didn't finish. Try again." };
+
+  const attachment = await db.attachment.create({
+    data: {
+      workspaceId: workspace.id,
+      createdById: user.id,
+      name: parsed.data.name,
+      contentType: blob.contentType,
+      size: blob.size,
+      url: blob.url,
+    },
+    select: { id: true, name: true, size: true, contentType: true, url: true },
+  });
+  return { ok: true, attachment };
+}
+
+/** Removes a file that isn't part of a launched campaign. */
+export async function removeAttachment(id: string) {
+  const { workspace } = await requireWorkspace();
+  const attachment = await db.attachment.findFirst({
+    where: {
+      id,
+      workspaceId: workspace.id,
+      OR: [{ campaignId: null }, { campaign: { status: "DRAFT" } }],
+    },
+  });
+  if (!attachment) return;
+  await db.attachment.delete({ where: { id } });
+  await del(attachment.url).catch((err) => console.error("blob delete failed", err));
+}
 
 /** Upserts contacts into the workspace, merging tags and fields with what's already there. */
 async function upsertContacts(workspaceId: string, rows: z.output<typeof recipientSchema>[]) {
@@ -122,6 +165,18 @@ export async function saveCampaign(input: CampaignInput): Promise<SaveResult> {
     if (existing.status !== "DRAFT") return { ok: false, error: "Only drafts can be edited." };
   }
 
+  const files = await db.attachment.findMany({
+    where: {
+      id: { in: data.attachmentIds },
+      workspaceId: workspace.id,
+      OR: [{ campaignId: null }, ...(campaignId ? [{ campaignId }] : [])],
+    },
+    select: { id: true, size: true },
+  });
+  if (files.reduce((n, f) => n + f.size, 0) > MAX_TOTAL_BYTES) {
+    return { ok: false, error: `Attachments add up to more than ${MAX_TOTAL_BYTES / 1024 / 1024} MB. Remove one.` };
+  }
+
   const fromCsv = await upsertContacts(workspace.id, data.recipients);
   const fromTags = data.contactTags.length
     ? await db.contact.findMany({
@@ -142,7 +197,15 @@ export async function saveCampaign(input: CampaignInput): Promise<SaveResult> {
     subject: data.subject,
     body: data.body,
     trackClicks: data.trackClicks,
+    linkAttachments: data.linkAttachments,
   };
+
+  const removed = campaignId
+    ? await db.attachment.findMany({
+        where: { campaignId, id: { notIn: files.map((f) => f.id) } },
+        select: { id: true, url: true },
+      })
+    : [];
 
   const id = await db.$transaction(async (tx) => {
     const campaign = campaignId
@@ -165,9 +228,16 @@ export async function saveCampaign(input: CampaignInput): Promise<SaveResult> {
         source: "WEB" as const,
       })),
     });
+
+    await tx.attachment.updateMany({
+      where: { id: { in: files.map((f) => f.id) } },
+      data: { campaignId: campaign.id },
+    });
+    if (removed.length) await tx.attachment.deleteMany({ where: { id: { in: removed.map((r) => r.id) } } });
     return campaign.id;
   });
 
+  if (removed.length) await del(removed.map((r) => r.url)).catch((err) => console.error("blob delete failed", err));
   revalidatePath("/dashboard/campaigns");
   return { ok: true, id };
 }
@@ -264,15 +334,17 @@ export async function sendTest(id: string): Promise<{ ok: true; to: string } | {
         fields: sample.contact.fields as Record<string, unknown> | null,
       })
     : { email: user.email };
-  const body = renderTemplate(campaign.body, vars).output;
 
   try {
+    const attachments = await db.attachment.findMany({ where: { campaignId: id } });
+    const email = await composeEmail({ ...campaign, attachments }, vars, null, createFileLoader());
     await sendViaGmail(await accessTokenFor(account.encryptedRefreshToken), {
       from: { email: account.email, name: user.name },
       to: { email: user.email, name: user.name },
-      subject: `[Test] ${renderTemplate(campaign.subject, vars).output}`,
-      html: textToHtml(body),
-      text: textToPlain(body),
+      subject: `[Test] ${email.subject}`,
+      html: email.html,
+      text: email.text,
+      attachments: email.attachments,
     });
     return { ok: true, to: user.email };
   } catch (err) {

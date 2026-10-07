@@ -1,18 +1,22 @@
 "use client";
 
-import { contactVars, listMergeFields, renderTemplate, textToHtml } from "@ripple/shared";
-import { ChevronLeft, ChevronRight, FileUp, Send, Trash2, X } from "lucide-react";
+import { contactVars, formatBytes, listMergeFields, renderTemplate, textToHtml } from "@ripple/shared";
+import { upload } from "@vercel/blob/client";
+import { ChevronLeft, ChevronRight, FileUp, Paperclip, Send, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
   deleteDraft,
   launchCampaign,
+  registerAttachment,
+  removeAttachment,
   saveCampaign,
   sendTest,
   type CampaignInput,
 } from "@/app/dashboard/campaigns/actions";
 import { inputClass } from "@/components/dashboard/forms";
 import { Button } from "@/components/ui/button";
+import { ACCEPT_ATTR, type AttachmentInfo, attachmentPrefix, MAX_TOTAL_BYTES } from "@/lib/attachments";
 import { parseRecipientsCsv, type ParsedCsv, type RecipientRow } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 
@@ -33,8 +37,11 @@ export interface EditorProps {
     subject: string;
     body: string;
     trackClicks: boolean;
+    linkAttachments: boolean;
   };
   initialRecipients: RecipientRow[];
+  initialAttachments: AttachmentInfo[];
+  workspaceId: string;
   accounts: SenderAccount[];
   tags: { tag: string; count: number }[];
   senderName: string;
@@ -46,7 +53,15 @@ const SAMPLE: RecipientRow = { email: "priya@example.com", name: "Priya Sharma",
 
 type Notice = { tone: "ok" | "error"; text: string } | null;
 
-export function CampaignEditor({ initial, initialRecipients, accounts, tags, senderName }: EditorProps) {
+export function CampaignEditor({
+  initial,
+  initialRecipients,
+  initialAttachments,
+  workspaceId,
+  accounts,
+  tags,
+  senderName,
+}: EditorProps) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [recipients, setRecipients] = useState<RecipientRow[]>(initialRecipients);
@@ -55,6 +70,10 @@ export function CampaignEditor({ initial, initialRecipients, accounts, tags, sen
   const [previewIndex, setPreviewIndex] = useState(0);
   const [scheduleAt, setScheduleAt] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
+  const [attachments, setAttachments] = useState<AttachmentInfo[]>(initialAttachments);
+  const [uploading, setUploading] = useState<{ name: string; pct: number }[]>([]);
+  const attachRef = useRef<HTMLInputElement>(null);
+  const totalBytes = attachments.reduce((n, a) => n + a.size, 0);
   const [pending, startTransition] = useTransition();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -75,7 +94,9 @@ export function CampaignEditor({ initial, initialRecipients, accounts, tags, sen
   const previewRow = recipients[previewIndex] ?? recipients[0] ?? SAMPLE;
   const vars = contactVars(previewRow);
   const subject = renderTemplate(form.subject, vars).output;
-  const html = textToHtml(renderTemplate(form.body, vars).output);
+  const html = textToHtml(renderTemplate(form.body, vars).output, {
+    files: form.linkAttachments ? attachments : [],
+  });
 
   const missingSummary = useMemo(() => {
     const used = listMergeFields(form.subject + "\n" + form.body);
@@ -115,7 +136,35 @@ export function CampaignEditor({ initial, initialRecipients, accounts, tags, sen
   }
 
   function payload(): CampaignInput {
-    return { ...form, recipients, contactTags };
+    return { ...form, recipients, contactTags, attachmentIds: attachments.map((a) => a.id) };
+  }
+
+  async function onAttach(files: FileList) {
+    setNotice(null);
+    let budget = MAX_TOTAL_BYTES - totalBytes;
+    for (const file of Array.from(files)) {
+      if (file.size > budget) {
+        setNotice({ tone: "error", text: `${file.name} would take attachments past ${formatBytes(MAX_TOTAL_BYTES)}.` });
+        continue;
+      }
+      budget -= file.size;
+      setUploading((u) => [...u, { name: file.name, pct: 0 }]);
+      try {
+        const blob = await upload(`${attachmentPrefix(workspaceId)}${file.name}`, file, {
+          access: "public",
+          handleUploadUrl: "/api/files/upload",
+          onUploadProgress: ({ percentage }) =>
+            setUploading((u) => u.map((x) => (x.name === file.name ? { ...x, pct: percentage } : x))),
+        });
+        const res = await registerAttachment({ url: blob.url, name: file.name });
+        if (res.ok) setAttachments((a) => [...a, res.attachment]);
+        else setNotice({ tone: "error", text: res.error });
+      } catch (err) {
+        setNotice({ tone: "error", text: `Couldn’t upload ${file.name}: ${(err as Error).message}` });
+      } finally {
+        setUploading((u) => u.filter((x) => x.name !== file.name));
+      }
+    }
   }
 
   function run(task: () => Promise<void>) {
@@ -399,6 +448,80 @@ export function CampaignEditor({ initial, initialRecipients, accounts, tags, sen
             />
             Track link clicks
             <span className="text-faint">(links go through Ripple, then straight to the page)</span>
+          </label>
+        </Card>
+
+        <Card
+          title="Attachments"
+          aside={
+            <span className="tabular text-sm text-muted">
+              {formatBytes(totalBytes)} of {formatBytes(MAX_TOTAL_BYTES)}
+            </span>
+          }
+        >
+          <input
+            ref={attachRef}
+            type="file"
+            multiple
+            accept={ACCEPT_ATTR}
+            className="sr-only"
+            onChange={(e) => {
+              if (e.target.files?.length) void onAttach(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <Button variant="secondary" size="sm" onClick={() => attachRef.current?.click()} disabled={pending}>
+            <Paperclip className="size-3.5" />
+            Attach files
+          </Button>
+          <p className="mt-2 text-xs text-faint">PDF, images, Word, PowerPoint or Excel. Every recipient gets them as real attachments.</p>
+
+          {(attachments.length > 0 || uploading.length > 0) && (
+            <ul className="mt-4 flex flex-col gap-2">
+              {attachments.map((a) => (
+                <li key={a.id} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2 text-sm">
+                  <Paperclip className="size-4 shrink-0 text-glow" />
+                  <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                  <span className="tabular text-faint">{formatBytes(a.size)}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${a.name}`}
+                    onClick={() => {
+                      setAttachments((list) => list.filter((x) => x.id !== a.id));
+                      void removeAttachment(a.id);
+                    }}
+                    className="press grid size-6 place-items-center rounded-md text-faint hover:bg-white/5 hover:text-text"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </li>
+              ))}
+              {uploading.map((u) => (
+                <li key={u.name} className="relative overflow-hidden rounded-xl border border-line px-3 py-2 text-sm text-muted">
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-0 left-0 bg-glow/10 transition-[width] duration-200"
+                    style={{ width: `${u.pct}%` }}
+                  />
+                  <span className="relative">Uploading {u.name}…</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <label className="mt-5 flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={form.linkAttachments}
+              onChange={(e) => set("linkAttachments", e.target.checked)}
+              className="mt-0.5 size-4 accent-[var(--glow)]"
+            />
+            <span>
+              Add a tracked “View” link for each file
+              <span className="block text-faint">
+                Shows who opened your brochure. Opening the attached copy itself can’t be tracked by any tool.
+              </span>
+            </span>
           </label>
         </Card>
       </div>

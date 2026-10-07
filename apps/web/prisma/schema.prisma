@@ -79,8 +79,9 @@ model Workspace {
   members   Member[]
   invites   Invite[]
   contacts  Contact[]
-  campaigns Campaign[]
-  messages  Message[]
+  campaigns   Campaign[]
+  messages    Message[]
+  attachments Attachment[]
 }
 
 model Member {
@@ -168,6 +169,8 @@ model Campaign {
   /// Source text: blank-line paragraphs, [label](url) links, **bold**, {{merge|fallback}} fields.
   body           String
   trackClicks    Boolean        @default(true)
+  /// Add a tracked "View" link under the body for each attached file.
+  linkAttachments Boolean       @default(true)
   status         CampaignStatus @default(DRAFT)
   scheduledAt    DateTime?
   startedAt      DateTime?
@@ -178,8 +181,27 @@ model Campaign {
   workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   gmailAccount GmailAccount? @relation(fields: [gmailAccountId], references: [id], onDelete: SetNull)
   messages     Message[]
+  attachments  Attachment[]
 
   @@index([workspaceId, createdAt])
+}
+
+/// A file sent with a campaign, stored in Vercel Blob. Unattached uploads have no campaign yet.
+model Attachment {
+  id          String   @id @default(cuid())
+  workspaceId String
+  campaignId  String?
+  createdById String
+  name        String
+  contentType String
+  size        Int
+  url         String   @unique
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign  Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
 }
 
 enum MessageSource {

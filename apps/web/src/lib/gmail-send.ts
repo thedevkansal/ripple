@@ -1,7 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 
-const SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
+// Media upload takes raw RFC 2822 up to 35 MB, so attachments fit.
+const SEND_URL = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
 
 const isAscii = (s: string) => /^[\x20-\x7e]*$/.test(s);
 
@@ -16,7 +17,25 @@ function formatAddress(email: string, name?: string | null) {
   return `${display} <${email}>`;
 }
 
-const base64Lines = (s: string) => Buffer.from(s, "utf8").toString("base64").replace(/.{76}/g, "$&\r\n");
+const base64Lines = (data: string | Buffer) =>
+  (typeof data === "string" ? Buffer.from(data, "utf8") : data).toString("base64").replace(/.{76}/g, "$&\r\n");
+
+// Strip CR/LF so no value can inject extra headers.
+const clean = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
+
+/** RFC 2231 filename parameter, with an ASCII fallback for older clients. */
+function filenameParams(name: string) {
+  const safe = clean(name).replace(/["\\]/g, "_");
+  if (isAscii(safe)) return `filename="${safe}"`;
+  const ascii = safe.replace(/[^\x20-\x7e]/g, "_");
+  return `filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(safe)}`;
+}
+
+export interface MailAttachment {
+  filename: string;
+  contentType: string;
+  data: Buffer;
+}
 
 export interface OutgoingEmail {
   from: { email: string; name?: string | null };
@@ -24,30 +43,57 @@ export interface OutgoingEmail {
   subject: string;
   html: string;
   text: string;
+  attachments?: MailAttachment[];
 }
 
+const boundary = () => `rpl_${randomBytes(12).toString("hex")}`;
+
 export function buildMime(email: OutgoingEmail): string {
-  // Strip CR/LF so no value can inject extra headers.
-  const clean = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
-  const boundary = `rpl_${randomBytes(12).toString("hex")}`;
-  return [
-    `From: ${formatAddress(clean(email.from.email), email.from.name && clean(email.from.name))}`,
-    `To: ${formatAddress(clean(email.to.email), email.to.name && clean(email.to.name))}`,
-    `Subject: ${encodeHeader(clean(email.subject))}`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
+  const alt = boundary();
+  const alternative = [
+    `--${alt}`,
     "Content-Type: text/plain; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
     "",
     base64Lines(email.text),
-    `--${boundary}`,
+    `--${alt}`,
     "Content-Type: text/html; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
     "",
     base64Lines(email.html),
-    `--${boundary}--`,
+    `--${alt}--`,
+  ];
+
+  const headers = [
+    `From: ${formatAddress(clean(email.from.email), email.from.name && clean(email.from.name))}`,
+    `To: ${formatAddress(clean(email.to.email), email.to.name && clean(email.to.name))}`,
+    `Subject: ${encodeHeader(clean(email.subject))}`,
+    "MIME-Version: 1.0",
+  ];
+
+  if (!email.attachments?.length) {
+    return [...headers, `Content-Type: multipart/alternative; boundary="${alt}"`, "", ...alternative, ""].join("\r\n");
+  }
+
+  const mixed = boundary();
+  const parts = email.attachments.flatMap((a) => [
+    `--${mixed}`,
+    `Content-Type: ${clean(a.contentType)}; name="${clean(a.filename).replace(/["\\]/g, "_")}"`,
+    `Content-Disposition: attachment; ${filenameParams(a.filename)}`,
+    "Content-Transfer-Encoding: base64",
+    "",
+    base64Lines(a.data),
+  ]);
+  return [
+    ...headers,
+    `Content-Type: multipart/mixed; boundary="${mixed}"`,
+    "",
+    `--${mixed}`,
+    `Content-Type: multipart/alternative; boundary="${alt}"`,
+    "",
+    ...alternative,
+    ...parts,
+    `--${mixed}--`,
     "",
   ].join("\r\n");
 }
@@ -68,8 +114,8 @@ export async function sendViaGmail(accessToken: string, email: OutgoingEmail): P
   try {
     res = await fetch(SEND_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ raw: Buffer.from(buildMime(email), "utf8").toString("base64url") }),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "message/rfc822" },
+      body: buildMime(email),
       cache: "no-store",
     });
   } catch (err) {

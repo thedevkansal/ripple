@@ -32,9 +32,14 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
   if (!campaign) notFound();
 
   if (campaign.status === "DRAFT") {
-    const [accounts, tags, messages] = await Promise.all([
+    const [accounts, tags, attachments, messages] = await Promise.all([
       senderAccounts(user.id),
       contactTagCounts(workspace.id),
+      db.attachment.findMany({
+        where: { campaignId: id },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, size: true, contentType: true, url: true },
+      }),
       db.message.findMany({
         where: { campaignId: id },
         orderBy: { createdAt: "asc" },
@@ -66,6 +71,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
               subject: campaign.subject,
               body: campaign.body,
               trackClicks: campaign.trackClicks,
+              linkAttachments: campaign.linkAttachments,
             }}
             initialRecipients={messages.map((m) => ({
               email: m.toEmail,
@@ -74,6 +80,8 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
               tags: m.contact?.tags,
               fields: (m.contact?.fields as Record<string, string> | null) ?? undefined,
             }))}
+            initialAttachments={attachments}
+            workspaceId={workspace.id}
             accounts={accounts}
             tags={tags}
             senderName={user.name ?? ""}
@@ -83,7 +91,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
     );
   }
 
-  const [statsMap, messages, sentToday] = await Promise.all([
+  const [statsMap, messages, sentToday, files] = await Promise.all([
     campaignStats([id]),
     db.message.findMany({
       where: { campaignId: id },
@@ -95,11 +103,16 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
         sentAt: true,
         error: true,
         contact: { select: { name: true, org: true } },
-        events: { select: { type: true, at: true, isPrefetch: true, isBot: true } },
+        events: {
+          select: { type: true, at: true, isPrefetch: true, isBot: true, link: { select: { url: true } } },
+        },
       },
     }),
     campaign.gmailAccount ? sentInLastDay(campaign.gmailAccount.id) : Promise.resolve(0),
+    db.attachment.findMany({ where: { campaignId: id }, select: { url: true } }),
   ]);
+  const fileUrls = new Set(files.map((f) => f.url));
+  const hasFiles = campaign.linkAttachments && fileUrls.size > 0;
   const s = statsMap.get(id)!;
   const account = campaign.gmailAccount;
   const quotaReached = account && sentToday >= account.dailyLimit && s.queued > 0;
@@ -111,7 +124,11 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
       m.events.map((e) => ({ ...e, type: e.type === "OPEN" ? ("open" as const) : ("click" as const) })),
       m.sentAt,
     ),
+    fileOpens: m.events.filter(
+      (e) => e.type === "CLICK" && !e.isBot && !e.isPrefetch && e.link && fileUrls.has(e.link.url),
+    ).length,
   }));
+  const fileOpeners = rows.filter((r) => r.fileOpens > 0).length;
 
   return (
     <PageBody>
@@ -140,10 +157,11 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
         </Banner>
       )}
 
-      <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className={cn("mt-8 grid grid-cols-2 gap-3", hasFiles ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
         <Stat label="Sent" value={`${s.sent}`} sub={`of ${s.total}`} />
         <Stat label="Opened" value={pct(s.opened, s.sent)} sub={`${s.opened} people`} />
         <Stat label="Clicked" value={pct(s.clicked, s.sent)} sub={`${s.clicked} people`} />
+        {hasFiles && <Stat label="Opened files" value={pct(fileOpeners, s.sent)} sub={`${fileOpeners} people`} />}
         <Stat
           label={s.failed ? "Failed" : "Waiting"}
           value={`${s.failed || s.queued}`}
@@ -164,6 +182,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
               <th className="px-3 py-3 font-normal">Sent</th>
               <th className="px-3 py-3 text-right font-normal">Opens</th>
               <th className="px-3 py-3 text-right font-normal">Clicks</th>
+              {hasFiles && <th className="px-3 py-3 text-right font-normal">Files</th>}
               <th className="px-5 py-3 font-normal">Last opened</th>
             </tr>
           </thead>
@@ -182,7 +201,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
                   {m.summary.opens > 0 ? (
                     <span className="text-glow">{m.summary.opens}</span>
                   ) : m.summary.onlyPrefetched ? (
-                    <span className="text-warn" title="Only automatic loads (Apple Mail or a scanner), not a confirmed read">
+                    <span className="text-warn" title="Only automatic loads (Gmail at delivery, Apple Mail or a scanner), not a confirmed read">
                       maybe
                     </span>
                   ) : (
@@ -192,6 +211,15 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
                 <td className="tabular px-3 py-3 text-right">
                   {m.summary.clicks > 0 ? <span className="text-dusk">{m.summary.clicks}</span> : <span className="text-faint">0</span>}
                 </td>
+                {hasFiles && (
+                  <td className="tabular px-3 py-3 text-right">
+                    {m.fileOpens > 0 ? (
+                      <span className="text-dusk">opened {m.fileOpens}×</span>
+                    ) : (
+                      <span className="text-faint">–</span>
+                    )}
+                  </td>
+                )}
                 <td className="tabular px-5 py-3 text-muted">
                   {m.summary.lastOpenAt ? timeFmt.format(m.summary.lastOpenAt) : "–"}
                 </td>
