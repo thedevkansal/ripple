@@ -1,26 +1,129 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #060912;
+  --ink-raised: #0c1220;
+  --ink-sunken: #04060c;
+  --line: rgb(148 163 184 / 0.12);
+  --line-strong: rgb(148 163 184 / 0.22);
+  --text: #e8eef7;
+  --muted: #8a96ad;
+  --faint: #56617a;
+  --glow: #7cf3e0;
+  --dusk: #8b7cff;
+  --warn: #f5c26b;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: var(--ink);
+  --color-ink-raised: var(--ink-raised);
+  --color-ink-sunken: var(--ink-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-glow: var(--glow);
+  --color-dusk: var(--dusk);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-bricolage);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+  background: var(--ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(124 243 224 / 0.25);
+}
+
+:focus-visible {
+  outline: 2px solid var(--glow);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pressable feedback */
+.press {
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+/* ── Radar ─────────────────────────────────────────── */
+
+@keyframes ripple-out {
+  from {
+    transform: translate(-50%, -50%) scale(0.08);
+    opacity: 0.9;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+.ripple-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  border: 1px solid rgb(124 243 224 / 0.55);
+  box-shadow: 0 0 24px rgb(124 243 224 / 0.12), inset 0 0 24px rgb(124 243 224 / 0.08);
+  animation: ripple-out 4.8s linear infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes ping-dot {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3.2);
+    opacity: 0;
+  }
+}
+
+.ping {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--glow);
+  animation: ping-dot 1.1s var(--ease-out) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ripple-ring {
+    animation: none;
+    opacity: 0.25;
+    transform: translate(-50%, -50%) scale(var(--static-scale, 0.6));
+  }
+  .ping {
+    animation: none;
+    opacity: 0;
+  }
 }
