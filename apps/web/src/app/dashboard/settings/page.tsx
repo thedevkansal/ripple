@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ActionForm, CopyButton, inputClass, SubmitButton } from "@/components/dashboard/forms";
 import { PageBody, PageHeader } from "@/components/dashboard/page-header";
 import { buttonClass } from "@/components/ui/button";
+import { LocalTime } from "@/components/ui/local-time";
 import { db } from "@/lib/db";
 import { appUrl } from "@/lib/google";
 import { canManage, requireWorkspace } from "@/lib/workspace";
@@ -30,7 +31,6 @@ const GMAIL_RESULTS: Record<string, { ok: boolean; text: string }> = {
   failed: { ok: false, text: "Google didn't complete the connection. Try again in a moment." },
 };
 
-const dateFmt = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" });
 
 export default async function SettingsPage({ searchParams }: PageProps<"/dashboard/settings">) {
   const { user, workspace, role } = await requireWorkspace();
@@ -95,7 +95,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
               <li key={a.id} className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4 last:border-0">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{a.email}</p>
-                  <p className="text-sm text-faint">Connected {dateFmt.format(a.createdAt)}</p>
+                  <p className="text-sm text-faint">Connected <LocalTime date={a.createdAt} format="date" /></p>
                 </div>
                 <ActionForm action={updateDailyLimit} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="accountId" value={a.id} />
@@ -187,7 +187,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
                     >
                       <code className="min-w-0 flex-1 truncate text-xs text-muted">{url}</code>
                       <span className="text-xs text-faint">
-                        {inv.role.toLowerCase()}, expires {dateFmt.format(inv.expiresAt)}
+                        {inv.role.toLowerCase()}, expires <LocalTime date={inv.expiresAt} format="date" />
                       </span>
                       <CopyButton value={url} />
                       <form action={revokeInvite.bind(null, inv.id)}>

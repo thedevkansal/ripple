@@ -1,17 +1,20 @@
 import { Plus, Send } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { after } from "next/server";
 import { StatusBadge } from "@/components/campaigns/status-badge";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PageBody, PageHeader } from "@/components/dashboard/page-header";
 import { ButtonLink } from "@/components/ui/button";
+import { LiveRefresh } from "@/components/ui/live-refresh";
+import { LocalTime } from "@/components/ui/local-time";
 import { campaignStats } from "@/lib/campaign-data";
 import { db } from "@/lib/db";
+import { kickQueueIfDue } from "@/lib/queue";
 import { requireWorkspace } from "@/lib/workspace";
 
 export const metadata: Metadata = { title: "Campaigns" };
 
-const dateFmt = new Intl.DateTimeFormat("en", { day: "numeric", month: "short" });
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "–");
 
 export default async function CampaignsPage() {
@@ -22,6 +25,9 @@ export default async function CampaignsPage() {
     select: { id: true, name: true, tag: true, status: true, createdAt: true, scheduledAt: true },
   });
   const stats = await campaignStats(campaigns.map((c) => c.id));
+  if (campaigns.some((c) => c.status === "SCHEDULED" || c.status === "SENDING")) {
+    after(() => kickQueueIfDue().catch((err) => console.error("kickQueueIfDue", err)));
+  }
 
   const newButton = (
     <ButtonLink href="/dashboard/campaigns/new">
@@ -32,6 +38,7 @@ export default async function CampaignsPage() {
 
   return (
     <PageBody>
+      <LiveRefresh seconds={20} />
       <PageHeader
         title="Campaigns"
         description="Personal emails to a whole list, sent from your Gmail."
@@ -78,7 +85,7 @@ export default async function CampaignsPage() {
                     </td>
                     <td className="tabular px-3 py-3.5 text-right">{pct(s.opened, s.sent)}</td>
                     <td className="tabular px-3 py-3.5 text-right">{pct(s.clicked, s.sent)}</td>
-                    <td className="tabular px-5 py-3.5 text-right text-muted">{dateFmt.format(c.createdAt)}</td>
+                    <td className="tabular px-5 py-3.5 text-right text-muted"><LocalTime date={c.createdAt} format="date" /></td>
                   </tr>
                 );
               })}

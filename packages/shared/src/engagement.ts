@@ -21,8 +21,11 @@ export interface EngagementSummary {
   score: number;
 }
 
-/** Proxies and clients often fetch the pixel several times per view. */
-export const OPEN_BURST_MS = 30_000;
+/**
+ * Proxies sometimes fetch the pixel twice for one view, a second or two apart. Real reopens
+ * observed in Gmail were 14s+ apart, so 10s merges duplicates without hiding reopens.
+ */
+export const OPEN_BURST_MS = 10_000;
 
 export function summarize(events: EventLike[], sentAt: Date | null): EngagementSummary {
   const sorted = [...events].sort((a, b) => a.at.getTime() - b.at.getTime());

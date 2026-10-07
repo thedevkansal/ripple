@@ -66,8 +66,10 @@ export function instrumentHtml(html: string, opts: InstrumentOptions): Instrumen
     });
   }
 
+  // At the top: Gmail's app loads images lazily, so a pixel at the end only fires once the
+  // reader scrolls down to it.
   const pixel = pixelTag(baseUrl, token);
-  out = /<\/body>/i.test(out) ? out.replace(/<\/body>/i, `${pixel}</body>`) : out + pixel;
+  out = /<body[^>]*>/i.test(out) ? out.replace(/<body[^>]*>/i, (tag) => tag + pixel) : pixel + out;
 
   return { html: out, links };
 }

@@ -68,8 +68,19 @@ export function contactVars(contact: ContactLike): MergeVars {
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// [label](url)  or a bare URL (trailing punctuation excluded).
-const LINK_RE = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])/g;
+// Common TLDs for linking bare domains like "esummit.in" or "www.iitr.ac.in". Gmail links these
+// itself when we don't, and its links skip click tracking.
+const TLDS =
+  "com|in|org|net|io|co|app|dev|ai|edu|gov|me|xyz|info|tech|live|club|biz|us|uk|so|gg|tv|ly|fm|ca|au|de|fr|jp|sg|ae|event|events|site|online|store|link";
+
+// [label](url) | http(s) URL | www. or bare domain (labels of 2+ chars, so "B.Tech" stays text).
+// Trailing punctuation is never part of a link.
+const LINK_RE = new RegExp(
+  String.raw`\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)` +
+    String.raw`|(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])` +
+    String.raw`|(?<![@\w.\/-])((?:www\.)?(?:[a-z0-9][a-z0-9-]+\.)+(?:${TLDS})(?![\w-])(?:\/[^\s<]*[^\s<.,;:!?)\]'"])?)`,
+  "gi",
+);
 
 function inlineToHtml(text: string): string {
   let html = "";
@@ -81,8 +92,8 @@ function inlineToHtml(text: string): string {
 
   for (const m of text.matchAll(LINK_RE)) {
     html += formatText(text.slice(last, m.index));
-    const url = m[2] ?? m[3];
-    const label = m[1] ?? m[3];
+    const url = m[2] ?? m[3] ?? `https://${m[4]}`;
+    const label = m[1] ?? m[3] ?? m[4];
     html += `<a href="${escapeHtml(url)}" style="color:#1a73e8">${escapeHtml(label)}</a>`;
     last = m.index + m[0].length;
   }

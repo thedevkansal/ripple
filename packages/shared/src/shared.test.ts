@@ -29,7 +29,7 @@ describe("token", () => {
 });
 
 describe("instrumentHtml", () => {
-  test("rewrites http links, dedupes urls, skips mailto, appends pixel inside body", () => {
+  test("rewrites http links, dedupes urls, skips mailto, puts pixel at top of body", () => {
     const html = `<html><body>
       <a href="https://esummit.in/speakers?a=1&amp;b=2">Speakers</a>
       <a href='https://esummit.in/speakers?a=1&amp;b=2'>Again</a>
@@ -46,17 +46,17 @@ describe("instrumentHtml", () => {
     expect(out).toContain(`href='${BASE}/t/c/T/0'`);
     expect(out).toContain(`class="btn" href="${BASE}/t/c/T/1"`);
     expect(out).toContain(`href="mailto:me@x.com"`);
-    expect(out).toMatch(/<img src="https:\/\/ripple\.test\/t\/o\/T\.gif"[^>]*\/><\/body>/);
+    expect(out).toMatch(/^<html><body><img src="https:\/\/ripple\.test\/t\/o\/T\.gif"[^>]*\/>/);
   });
 
-  test("appends pixel when there is no body tag and respects trackClicks=false", () => {
+  test("puts the pixel first when there is no body tag and respects trackClicks=false", () => {
     const { html, links } = instrumentHtml(`<p><a href="https://a.com">a</a></p>`, {
       baseUrl: BASE,
       token: "T",
       trackClicks: false,
     });
     expect(links).toHaveLength(0);
-    expect(html.startsWith(`<p><a href="https://a.com">a</a></p><img`)).toBe(true);
+    expect(html).toMatch(/^<img [^>]*\/><p><a href="https:\/\/a\.com">a<\/a><\/p>$/);
   });
 });
 
@@ -119,7 +119,7 @@ describe("summarize", () => {
 
   test("collapses bursts and computes intervals", () => {
     const s = summarize(
-      [open(120), open(120.2), open(60 * 24 + 120), { ...open(130), type: "click" }, open(0.05, { isPrefetch: true })],
+      [open(120), open(120.1), open(60 * 24 + 120), { ...open(130), type: "click" }, open(0.05, { isPrefetch: true })],
       sentAt,
     );
     expect(s.rawOpens).toBe(4);

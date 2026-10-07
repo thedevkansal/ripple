@@ -25,6 +25,20 @@ function eligible(now: Date): Prisma.MessageWhereInput {
   };
 }
 
+/**
+ * Runs the queue in the background when something is due and no other worker is mid-send.
+ * Called on dashboard views, so scheduled campaigns go out on time while anyone has Ripple open,
+ * independent of the external cron.
+ */
+export async function kickQueueIfDue() {
+  const now = new Date();
+  const [due, busy] = await Promise.all([
+    db.message.count({ where: eligible(now), take: 1 }),
+    db.message.count({ where: { status: "SENDING", claimedAt: { gt: new Date(Date.now() - 60_000) } }, take: 1 }),
+  ]);
+  if (due && !busy) await processQueue({ budgetMs: 25_000 });
+}
+
 export async function sentInLastDay(gmailAccountId: string) {
   return db.message.count({
     where: { gmailAccountId, status: "SENT", sentAt: { gt: new Date(Date.now() - DAY_MS) } },

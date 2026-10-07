@@ -48,7 +48,6 @@ export interface EditorProps {
 }
 
 const SUGGESTED_TAGS = ["speaker", "sponsor", "investor", "partner", "mentor"];
-const BASE_FIELDS = ["first_name", "name", "company", "email"];
 const SAMPLE: RecipientRow = { email: "priya@example.com", name: "Priya Sharma", org: "Razorpay" };
 
 type Notice = { tone: "ok" | "error"; text: string } | null;
@@ -70,6 +69,7 @@ export function CampaignEditor({
   const [previewIndex, setPreviewIndex] = useState(0);
   const [scheduleAt, setScheduleAt] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentInfo[]>(initialAttachments);
   const [uploading, setUploading] = useState<{ name: string; pct: number }[]>([]);
   const attachRef = useRef<HTMLInputElement>(null);
@@ -85,10 +85,18 @@ export function CampaignEditor({
   const tagCount = tags.filter((t) => contactTags.includes(t.tag)).reduce((n, t) => n + t.count, 0);
   const total = recipients.length + tagCount; // upper bound; overlaps are merged on save
 
-  const customFields = useMemo(() => {
-    const keys = new Set<string>();
-    for (const r of recipients.slice(0, 200)) for (const k of Object.keys(r.fields ?? {})) keys.add(k);
-    return [...keys];
+  // Offer only fields the recipients actually have. With no list yet, show the usual ones.
+  const { baseFields, customFields } = useMemo(() => {
+    if (!recipients.length) return { baseFields: ["first_name", "name", "company", "email"], customFields: [] };
+    const base = new Set<string>(["email"]);
+    const custom = new Set<string>();
+    for (const r of recipients) {
+      if (r.name) base.add("first_name").add("name");
+      if (r.org) base.add("company");
+      for (const k of Object.keys(r.fields ?? {})) custom.add(k);
+    }
+    const order = ["first_name", "name", "company", "email"];
+    return { baseFields: order.filter((k) => base.has(k)), customFields: [...custom] };
   }, [recipients]);
 
   const previewRow = recipients[previewIndex] ?? recipients[0] ?? SAMPLE;
@@ -125,9 +133,15 @@ export function CampaignEditor({
   async function onFile(file: File) {
     const parsed = parseRecipientsCsv(await file.text());
     if (!parsed.columns.some((c) => c.role === "email")) {
-      setNotice({ tone: "error", text: "That file has no email column. Add a column named “email”." });
+      const found = parsed.columns.map((c) => c.header).join(", ") || "none";
+      setCsvError(`${file.name} has no email column (found: ${found}). Name a column “email” and upload again.`);
       return;
     }
+    if (!parsed.rows.length) {
+      setCsvError(`${file.name} has an email column, but no row has a valid address.`);
+      return;
+    }
+    setCsvError(null);
     const known = new Set(recipients.map((r) => r.email));
     setRecipients([...recipients, ...parsed.rows.filter((r) => !known.has(r.email))]);
     setCsvInfo(parsed);
@@ -300,6 +314,11 @@ export function CampaignEditor({
               </Button>
             )}
           </div>
+          {csvError && (
+            <p role="alert" className="mt-3 rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-200">
+              {csvError}
+            </p>
+          )}
           <p className="mt-2 text-xs text-faint">
             Needs an email column. Name, company and tags are picked up automatically; any other column
             becomes a merge field.
@@ -395,7 +414,7 @@ export function CampaignEditor({
                 Body
               </label>
               <div className="flex flex-wrap gap-1.5">
-                {[...BASE_FIELDS, ...customFields].map((k) => (
+                {[...baseFields, ...customFields].map((k) => (
                   <button
                     key={k}
                     type="button"

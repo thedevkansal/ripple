@@ -3,7 +3,7 @@ name: Send queue
 # Vercel's free plan only runs cron jobs daily, so GitHub drives the send queue.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:

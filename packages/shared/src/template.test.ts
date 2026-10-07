@@ -82,3 +82,25 @@ describe("file cards", () => {
     expect(links).toEqual([{ index: 0, url: files[0].url }]);
   });
 });
+
+describe("auto-linking", () => {
+  const links = (text: string) => [...textToHtml(text).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+
+  test("links bare domains and www. so Gmail can't bypass tracking", () => {
+    expect(links("Visit esummit.in\nor www.iitr.ac.in/events.\nhttps://x.com/home")).toEqual([
+      "https://esummit.in",
+      "https://www.iitr.ac.in/events",
+      "https://x.com/home",
+    ]);
+  });
+
+  test("leaves emails, abbreviations, file names and times alone", () => {
+    expect(
+      links("Mail devkansal24024@gmail.com. B.Tech. CSE, 1993. See brochure.pdf, e.g. at 6:00 PM. Thomso'26."),
+    ).toEqual([]);
+  });
+
+  test("does not double-link markdown links", () => {
+    expect(links("[site](https://esummit.in) and esummit.in")).toEqual(["https://esummit.in", "https://esummit.in"]);
+  });
+});
