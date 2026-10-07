@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      - run: bun run --filter @ripple/shared test
+      - run: bun run --filter @ripple/web test
+      - run: bunx next typegen && bunx tsc --noEmit
+        working-directory: apps/web
+      - run: bun run lint

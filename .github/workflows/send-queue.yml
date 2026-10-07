@@ -1,0 +1,25 @@
+name: Send queue
+
+# Vercel's free plan only runs cron jobs daily, so GitHub drives the send queue.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Process queued emails
+        env:
+          RIPPLE_URL: ${{ secrets.RIPPLE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$RIPPLE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "RIPPLE_URL or CRON_SECRET secret not set; skipping."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            -X POST "$RIPPLE_URL/api/cron/send" \
+            -H "Authorization: Bearer $CRON_SECRET"
