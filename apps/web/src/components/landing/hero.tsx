@@ -1,4 +1,4 @@
-import { ButtonLink } from "@/components/landing/button";
+import { ButtonLink } from "@/components/ui/button";
 import { RippleRadar } from "@/components/landing/ripple-radar";
 
 export function Hero() {

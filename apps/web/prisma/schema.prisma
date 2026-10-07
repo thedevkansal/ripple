@@ -77,6 +77,7 @@ model Workspace {
   createdAt DateTime @default(now())
 
   members   Member[]
+  invites   Invite[]
   contacts  Contact[]
   campaigns Campaign[]
   messages  Message[]
@@ -92,6 +93,22 @@ model Member {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@id([userId, workspaceId])
+}
+
+/// Shareable link that adds whoever opens it to a workspace.
+model Invite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  token       String    @unique
+  role        Role      @default(MEMBER)
+  createdById String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }
 
 /// A Gmail mailbox connected for sending. Tokens are encrypted at rest.

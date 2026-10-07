@@ -1,6 +1,6 @@
 import { Check, CheckCheck } from "lucide-react";
 import { LogoMark } from "@/components/brand/logo";
-import { ButtonLink } from "@/components/landing/button";
+import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const SENT = [

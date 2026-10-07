@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
-import { ButtonLink } from "@/components/landing/button";
+import { ButtonLink } from "@/components/ui/button";
 
 const LINKS = [
   { href: "#how", label: "How it works" },

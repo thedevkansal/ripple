@@ -1,5 +1,5 @@
 import { Logo } from "@/components/brand/logo";
-import { ButtonLink } from "@/components/landing/button";
+import { ButtonLink } from "@/components/ui/button";
 
 export function ClosingCta() {
   return (
