@@ -1,4 +1,4 @@
-import { classify, isValidToken } from "@ripple/shared";
+import { classify, isValidToken, type Classification } from "@ripple/shared";
 import { db } from "@/lib/db";
 
 // 1x1 transparent GIF.
@@ -29,23 +29,31 @@ export function requestMeta(request: Request): RequestMeta {
   };
 }
 
-export async function recordOpen(token: string, meta: RequestMeta): Promise<void> {
-  if (!isValidToken(token)) return;
+export type ClassifiedOpen = { messageId: string; classification: Classification };
+
+/** Looks up the message and classifies the fetch, so the route can decide how to answer it. */
+export async function classifyOpen(token: string, meta: RequestMeta): Promise<ClassifiedOpen | null> {
+  if (!isValidToken(token)) return null;
   const message = await db.message.findUnique({
     where: { token },
     select: { id: true, sentAt: true },
   });
-  if (!message) return;
+  if (!message) return null;
+  return {
+    messageId: message.id,
+    classification: classify({ userAgent: meta.userAgent, ip: meta.ip, at: meta.at, sentAt: message.sentAt }),
+  };
+}
 
-  const c = classify({ userAgent: meta.userAgent, at: meta.at, sentAt: message.sentAt });
+export async function saveOpen({ messageId, classification }: ClassifiedOpen, meta: RequestMeta) {
   await db.event.create({
     data: {
-      messageId: message.id,
+      messageId,
       type: "OPEN",
       at: meta.at,
       ip: meta.ip,
       userAgent: meta.userAgent,
-      ...c,
+      ...classification,
     },
   });
 }
@@ -62,7 +70,7 @@ export async function recordClick(
   link: NonNullable<Awaited<ReturnType<typeof findLink>>>,
   meta: RequestMeta,
 ): Promise<void> {
-  const c = classify({ userAgent: meta.userAgent, at: meta.at, sentAt: link.message.sentAt });
+  const c = classify({ userAgent: meta.userAgent, ip: meta.ip, at: meta.at, sentAt: link.message.sentAt });
   await db.event.create({
     data: {
       messageId: link.messageId,

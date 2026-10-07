@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   classify,
+  shouldWithholdPixel,
   generateToken,
   instrumentHtml,
   isValidToken,
@@ -134,5 +135,33 @@ describe("summarize", () => {
     expect(s.opens).toBe(0);
     expect(s.onlyPrefetched).toBe(true);
     expect(s.score).toBe(5);
+  });
+});
+
+describe("gmail delivery prefetch", () => {
+  const sentAt = new Date("2026-10-07T17:31:36Z");
+  const NEW_UA =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246 Mozilla/5.0";
+
+  test("current proxy UA is gmail; the delivery fetch is withheld", () => {
+    const c = classify({ userAgent: NEW_UA, ip: "66.249.91.171", at: new Date(sentAt.getTime() + 3_772), sentAt });
+    expect(c).toMatchObject({ client: "gmail", isProxy: true, isPrefetch: true });
+    expect(shouldWithholdPixel(c)).toBe(true);
+  });
+
+  test("a later proxy fetch is a real open and gets the pixel", () => {
+    const c = classify({ userAgent: NEW_UA, ip: "66.249.91.171", at: new Date(sentAt.getTime() + 5 * 60_000), sentAt });
+    expect(c).toMatchObject({ client: "gmail", isPrefetch: false });
+    expect(shouldWithholdPixel(c)).toBe(false);
+  });
+
+  test("google proxy IP alone identifies gmail", () => {
+    expect(classify({ userAgent: "Mozilla/5.0 (X11)", ip: "66.102.8.1", at: new Date(), sentAt }).client).toBe("gmail");
+    expect(classify({ userAgent: "Mozilla/5.0 (X11)", ip: "8.8.8.8", at: new Date(), sentAt }).client).not.toBe("gmail");
+  });
+
+  test("non-gmail early fetches are never withheld", () => {
+    const c = classify({ userAgent: "Mozilla/5.0", at: new Date(sentAt.getTime() + 1_000), sentAt });
+    expect(shouldWithholdPixel(c)).toBe(false);
   });
 });
