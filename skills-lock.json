@@ -43,11 +43,11 @@
       "skillPath": "prisma-client-api/SKILL.md",
       "computedHash": "5dcc0793337151efa73a444e5adbc7e1c24180778e83b4fe94c9109c391bd333"
     },
-    "prisma-database-setup": {
+    "prisma-orm-setup": {
       "source": "prisma/skills",
       "sourceType": "github",
-      "skillPath": "prisma-database-setup/SKILL.md",
-      "computedHash": "523066b1fe4b17a97d4f72f6190f8749815029a51a7e4fe190d8f74af1a8e74e"
+      "skillPath": "prisma-orm-setup/SKILL.md",
+      "computedHash": "af5046146c37652728b428b6a3b14d8f33cded97007644840cf9bf20a5194b5a"
     },
     "review-animations": {
       "source": "emilkowalski/skills",

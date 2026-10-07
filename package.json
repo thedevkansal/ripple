@@ -1,0 +1,16 @@
+{
+  "name": "ripple",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter @ripple/web dev",
+    "build": "bun run --filter @ripple/web build",
+    "lint": "bun run --filter @ripple/web lint",
+    "test": "bun run --filter '*' test",
+    "db:generate": "bun run --filter @ripple/web db:generate",
+    "db:push": "bun run --filter @ripple/web db:push"
+  }
+}
