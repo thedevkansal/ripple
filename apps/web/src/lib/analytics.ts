@@ -68,7 +68,7 @@ export async function totals(workspaceId: string, from: Date, to: Date): Promise
     JOIN m ON m.id = e."messageId"
     LEFT JOIN "Link" l ON l.id = e."linkId"
     LEFT JOIN "Attachment" a ON a.url = l.url
-    WHERE NOT e."isPrefetch" AND NOT e."isBot"`;
+    WHERE NOT e."isPrefetch" AND NOT e."isBot" AND NOT e."isSelf"`;
   return {
     sent: Number(row.sent),
     opened: Number(row.opened),
@@ -99,7 +99,7 @@ export async function dailyActivity(workspaceId: string, from: Date, to: Date, t
         count(*) FILTER (WHERE e.type = 'CLICK') AS clicked
       FROM "Event" e JOIN "Message" m ON m.id = e."messageId"
       WHERE m."workspaceId" = ${workspaceId} AND e.at >= ${from} AND e.at < ${to}
-        AND NOT e."isPrefetch" AND NOT e."isBot"
+        AND NOT e."isPrefetch" AND NOT e."isBot" AND NOT e."isSelf"
       GROUP BY 1`,
   ]);
 
@@ -138,7 +138,7 @@ export async function openHeatmap(workspaceId: string, from: Date, to: Date, tz:
       SELECT (e.at AT TIME ZONE 'UTC') AT TIME ZONE ${tz} AS local, e."messageId"
       FROM "Event" e JOIN "Message" m ON m.id = e."messageId"
       WHERE m."workspaceId" = ${workspaceId} AND e.type = 'OPEN' AND e.at >= ${from} AND e.at < ${to}
-        AND NOT e."isPrefetch" AND NOT e."isBot"
+        AND NOT e."isPrefetch" AND NOT e."isBot" AND NOT e."isSelf"
     ) s
     GROUP BY 1, 2`;
   const grid = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
@@ -153,7 +153,7 @@ export async function clientBreakdown(workspaceId: string, from: Date, to: Date)
     SELECT e.client, count(DISTINCT e."messageId") AS n
     FROM "Event" e JOIN "Message" m ON m.id = e."messageId"
     WHERE m."workspaceId" = ${workspaceId} AND e.type = 'OPEN' AND e.at >= ${from} AND e.at < ${to}
-      AND NOT e."isPrefetch" AND NOT e."isBot"
+      AND NOT e."isPrefetch" AND NOT e."isBot" AND NOT e."isSelf"
     GROUP BY 1 ORDER BY 2 DESC`;
   return rows.map((r) => ({ client: r.client, count: Number(r.n) }));
 }
@@ -195,7 +195,7 @@ export async function followUps(workspaceId: string, from: Date, to: Date): Prom
       contact: { select: { id: true, name: true } },
       campaign: { select: { id: true, name: true, attachments: { select: { url: true } } } },
       events: {
-        select: { type: true, at: true, isPrefetch: true, isBot: true, link: { select: { url: true } } },
+        select: { type: true, at: true, isPrefetch: true, isBot: true, isSelf: true, link: { select: { url: true } } },
       },
     },
   });
@@ -206,7 +206,7 @@ export async function followUps(workspaceId: string, from: Date, to: Date): Prom
       m.sentAt,
     );
     const files = new Set(m.campaign?.attachments.map((a) => a.url));
-    const human = m.events.filter((e) => !e.isPrefetch && !e.isBot);
+    const human = m.events.filter((e) => !e.isPrefetch && !e.isBot && !e.isSelf);
     const last = human.reduce<Date | null>((acc, e) => (!acc || e.at > acc ? e.at : acc), null);
     const fileOpens = human.filter((e) => e.type === "CLICK" && e.link && files.has(e.link.url)).length;
     return {

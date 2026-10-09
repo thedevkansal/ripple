@@ -22,6 +22,8 @@ model User {
   sessions      Session[]
   memberships   Member[]
   gmailAccounts GmailAccount[]
+  extensionTokens ExtensionToken[]
+  sentEmails    Message[]      @relation("SentEmails")
 }
 
 model Account {
@@ -79,6 +81,7 @@ model Workspace {
   members   Member[]
   invites   Invite[]
   templates Template[]
+  extensionTokens ExtensionToken[]
   contacts  Contact[]
   campaigns   Campaign[]
   messages    Message[]
@@ -240,11 +243,16 @@ model Message {
   gmailMessageId String?
   /// When a queue worker claimed it; stale claims are retried.
   claimedAt      DateTime?
+  /// Who sent it from Gmail with the extension (campaign emails have a campaign instead).
+  senderUserId   String?
+  /// Last time the sender viewed their own copy; proxy fetches right around it are theirs.
+  selfViewAt     DateTime?
   sentAt         DateTime?
   createdAt      DateTime      @default(now())
 
   workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   campaign     Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  sender       User?         @relation("SentEmails", fields: [senderUserId], references: [id], onDelete: SetNull)
   gmailAccount GmailAccount? @relation(fields: [gmailAccountId], references: [id], onDelete: SetNull)
   contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
   links        Link[]
@@ -286,6 +294,8 @@ model Event {
   isProxy    Boolean   @default(false)
   isPrefetch Boolean   @default(false)
   isBot      Boolean   @default(false)
+  /// The sender looking at their own sent email.
+  isSelf     Boolean   @default(false)
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   link    Link?   @relation(fields: [linkId], references: [id], onDelete: SetNull)
@@ -308,4 +318,20 @@ model Template {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, updatedAt])
+}
+
+/// Lets the Chrome extension act for one user in one workspace. Only a hash is stored.
+model ExtensionToken {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  tokenHash   String    @unique
+  label       String
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

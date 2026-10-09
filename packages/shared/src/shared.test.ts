@@ -177,3 +177,14 @@ describe("gmail delivery prefetch", () => {
     expect(shouldWithholdPixel(c)).toBe(false);
   });
 });
+
+describe("self views", () => {
+  test("the sender's own views count for nothing, not even 'maybe'", () => {
+    const sentAt = new Date("2026-10-09T10:00:00Z");
+    const s = summarize(
+      [{ type: "open", at: new Date("2026-10-09T10:05:00Z"), isPrefetch: false, isBot: false, isSelf: true }],
+      sentAt,
+    );
+    expect(s).toMatchObject({ opens: 0, rawOpens: 0, onlyPrefetched: false, score: 0 });
+  });
+});

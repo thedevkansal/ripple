@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartNoAxesColumn, Contact, FileText, Send, Settings } from "lucide-react";
+import { ChartNoAxesColumn, Contact, FileText, Mail, Send, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   { href: "/dashboard", label: "Overview", icon: ChartNoAxesColumn, exact: true },
   { href: "/dashboard/campaigns", label: "Campaigns", icon: Send },
+  { href: "/dashboard/emails", label: "Emails", icon: Mail },
   { href: "/dashboard/templates", label: "Templates", icon: FileText },
   { href: "/dashboard/contacts", label: "Contacts", icon: Contact },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },

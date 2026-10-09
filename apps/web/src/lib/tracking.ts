@@ -29,7 +29,10 @@ export function requestMeta(request: Request): RequestMeta {
   };
 }
 
-export type ClassifiedOpen = { messageId: string; classification: Classification };
+/** How close to a sender's self-view ping an image fetch must be to count as theirs. */
+export const SELF_VIEW_WINDOW_MS = 30_000;
+
+export type ClassifiedOpen = { messageId: string; classification: Classification; isSelf: boolean };
 
 /** Looks up the message and classifies the fetch, so the route can decide how to answer it. */
 export async function classifyOpen(token: string, meta: RequestMeta): Promise<ClassifiedOpen | null> {
@@ -39,6 +42,7 @@ export async function classifyOpen(token: string, meta: RequestMeta): Promise<Cl
     select: {
       id: true,
       sentAt: true,
+      selfViewAt: true,
       _count: { select: { events: { where: { type: "OPEN", client: "gmail" } } } },
     },
   });
@@ -52,10 +56,12 @@ export async function classifyOpen(token: string, meta: RequestMeta): Promise<Cl
       sentAt: message.sentAt,
       priorGmailFetches: message._count.events,
     }),
+    isSelf:
+      !!message.selfViewAt && Math.abs(meta.at.getTime() - message.selfViewAt.getTime()) < SELF_VIEW_WINDOW_MS,
   };
 }
 
-export async function saveOpen({ messageId, classification }: ClassifiedOpen, meta: RequestMeta) {
+export async function saveOpen({ messageId, classification, isSelf }: ClassifiedOpen, meta: RequestMeta) {
   await db.event.create({
     data: {
       messageId,
@@ -64,8 +70,28 @@ export async function saveOpen({ messageId, classification }: ClassifiedOpen, me
       ip: meta.ip,
       userAgent: meta.userAgent,
       ...classification,
+      isSelf,
     },
   });
+}
+
+/**
+ * The extension saw the sender viewing their own copy. Marks opens that just arrived as theirs
+ * (Gmail's fetch can beat this ping) and remembers the time for fetches still on their way.
+ */
+export async function recordSelfView(messageIds: string[], at = new Date()) {
+  if (!messageIds.length) return;
+  await db.$transaction([
+    db.message.updateMany({ where: { id: { in: messageIds } }, data: { selfViewAt: at } }),
+    db.event.updateMany({
+      where: {
+        messageId: { in: messageIds },
+        type: "OPEN",
+        at: { gte: new Date(at.getTime() - SELF_VIEW_WINDOW_MS) },
+      },
+      data: { isSelf: true },
+    }),
+  ]);
 }
 
 export async function findLink(token: string, index: number) {

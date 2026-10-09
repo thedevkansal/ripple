@@ -3,6 +3,8 @@ export interface EventLike {
   at: Date;
   isPrefetch: boolean;
   isBot: boolean;
+  /** The sender viewing their own copy. Not engagement, and not a "maybe" either. */
+  isSelf?: boolean;
 }
 
 export interface EngagementSummary {
@@ -28,7 +30,7 @@ export interface EngagementSummary {
 export const OPEN_BURST_MS = 10_000;
 
 export function summarize(events: EventLike[], sentAt: Date | null): EngagementSummary {
-  const sorted = [...events].sort((a, b) => a.at.getTime() - b.at.getTime());
+  const sorted = events.filter((e) => !e.isSelf).sort((a, b) => a.at.getTime() - b.at.getTime());
   const allOpens = sorted.filter((e) => e.type === "open");
   const humanOpens = allOpens.filter((e) => !e.isPrefetch && !e.isBot);
   const clicks = sorted.filter((e) => e.type === "click" && !e.isBot && !e.isPrefetch).length;

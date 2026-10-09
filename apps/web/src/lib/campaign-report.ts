@@ -26,7 +26,7 @@ export async function campaignReport(campaignId: string) {
         cc: true,
         contact: { select: { name: true, email: true, org: true, fields: true } },
         events: {
-          select: { type: true, at: true, isPrefetch: true, isBot: true, link: { select: { url: true } } },
+          select: { type: true, at: true, isPrefetch: true, isBot: true, isSelf: true, link: { select: { url: true } } },
         },
       },
     }),
@@ -55,7 +55,7 @@ export async function campaignReport(campaignId: string) {
       onlyPrefetched: s.onlyPrefetched,
       clicks: s.clicks,
       fileOpens: m.events.filter(
-        (e) => e.type === "CLICK" && !e.isBot && !e.isPrefetch && e.link && fileUrls.has(e.link.url),
+        (e) => e.type === "CLICK" && !e.isBot && !e.isPrefetch && !e.isSelf && e.link && fileUrls.has(e.link.url),
       ).length,
       firstOpenAt: s.firstOpenAt?.toISOString() ?? null,
       lastOpenAt: s.lastOpenAt?.toISOString() ?? null,

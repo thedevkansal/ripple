@@ -48,7 +48,7 @@ export async function campaignStats(campaignIds: string[]): Promise<Map<string, 
         count(DISTINCT e."messageId") FILTER (WHERE e.type = 'OPEN') AS opened,
         count(DISTINCT e."messageId") FILTER (WHERE e.type = 'CLICK') AS clicked
       FROM "Event" e JOIN "Message" m ON m.id = e."messageId"
-      WHERE m."campaignId" = ANY(${campaignIds}) AND NOT e."isPrefetch" AND NOT e."isBot"
+      WHERE m."campaignId" = ANY(${campaignIds}) AND NOT e."isPrefetch" AND NOT e."isBot" AND NOT e."isSelf"
       GROUP BY m."campaignId"`,
   ]);
 

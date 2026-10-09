@@ -1,4 +1,5 @@
-import { Mail, UserPlus } from "lucide-react";
+import { Mail, Plug, UserPlus } from "lucide-react";
+import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ActionForm, CopyButton, inputClass, SubmitButton } from "@/components/dashboard/forms";
@@ -17,6 +18,7 @@ import {
   revokeInvite,
   updateDailyLimit,
 } from "../actions";
+import { revokeExtension } from "../extension/actions";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -35,7 +37,7 @@ const GMAIL_RESULTS: Record<string, { ok: boolean; text: string }> = {
 export default async function SettingsPage({ searchParams }: PageProps<"/dashboard/settings">) {
   const { user, workspace, role } = await requireWorkspace();
   const manage = canManage(role);
-  const [{ gmail }, accounts, members, invites] = await Promise.all([
+  const [{ gmail }, accounts, members, invites, extensions] = await Promise.all([
     searchParams,
     db.gmailAccount.findMany({
       where: { userId: user.id },
@@ -53,6 +55,11 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
           orderBy: { createdAt: "desc" },
         })
       : Promise.resolve([]),
+    db.extensionToken.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, label: true, createdAt: true, lastUsedAt: true },
+    }),
   ]);
   const banner = typeof gmail === "string" ? GMAIL_RESULTS[gmail] : undefined;
 
@@ -201,6 +208,46 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
               </ul>
             )}
           </div>
+        )}
+      </Section>
+
+      <Section
+        id="extension"
+        title="Chrome extension"
+        description="Browsers where the Ripple extension is connected to your account. Revoke one to sign it out."
+        action={
+          <Link href="/dashboard/extension" className={buttonClass({ size: "sm", variant: "secondary" })}>
+            <Plug className="size-3.5" />
+            Connect a browser
+          </Link>
+        }
+      >
+        {extensions.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-muted">Not connected in any browser yet.</p>
+        ) : (
+          <ul>
+            {extensions.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-5 py-4 last:border-0">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{x.label}</p>
+                  <p className="text-sm text-faint">
+                    Connected <LocalTime date={x.createdAt} format="date" />
+                    {x.lastUsedAt && (
+                      <>
+                        {" · last used "}
+                        <LocalTime date={x.lastUsedAt} />
+                      </>
+                    )}
+                  </p>
+                </div>
+                <form action={revokeExtension.bind(null, x.id)}>
+                  <SubmitButton size="sm" variant="danger">
+                    Revoke
+                  </SubmitButton>
+                </form>
+              </li>
+            ))}
+          </ul>
         )}
       </Section>
 
