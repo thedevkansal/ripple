@@ -96,7 +96,7 @@ export function CampaignEditor({
     if (csvFields) {
       return { baseFields: csvFields.filter((f) => BASE.includes(f)), customFields: csvFields.filter((f) => !BASE.includes(f)) };
     }
-    if (!recipients.length) return { baseFields: ["name", "company", "email"], customFields: [] };
+    if (!recipients.length) return { baseFields: [], customFields: [] };
     const base = new Set<string>(["email"]);
     const custom = new Set<string>();
     for (const r of recipients) {
@@ -478,6 +478,9 @@ export function CampaignEditor({
                 Body
               </label>
               <div className="flex flex-wrap gap-1.5">
+                {baseFields.length + customFields.length === 0 && (
+                  <span className="text-xs text-faint">Upload a list to insert its columns</span>
+                )}
                 {[...baseFields, ...customFields].map((k) => (
                   <button
                     key={k}
