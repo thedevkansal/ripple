@@ -1,18 +1,20 @@
-import { contactVars, formatBytes, renderTemplate, summarize, textToHtml } from "@ripple/shared";
-import { ChevronRight, Paperclip } from "lucide-react";
+import { formatBytes, renderTemplate, textToHtml } from "@ripple/shared";
+import { ChevronRight, Download, FileText, Paperclip } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { CampaignControls } from "@/components/campaigns/campaign-controls";
 import { CampaignEditor } from "@/components/campaigns/campaign-editor";
-import { RecipientsTable, type RecipientRowData } from "@/components/campaigns/recipients-table";
+import { RecipientsTable } from "@/components/campaigns/recipients-table";
 import { StatusBadge } from "@/components/campaigns/status-badge";
 import { PageBody, PageHeader } from "@/components/dashboard/page-header";
 import { LiveRefresh } from "@/components/ui/live-refresh";
+import { buttonClass } from "@/components/ui/button";
 import { LocalTime } from "@/components/ui/local-time";
 import { ResetOnNavigate } from "@/components/ui/reset-on-navigate";
 import { campaignStats, listTemplates, senderAccounts } from "@/lib/campaign-data";
+import { campaignReport } from "@/lib/campaign-report";
 import { db } from "@/lib/db";
 import { kickQueueIfDue, sentInLastDay } from "@/lib/queue";
 import { cn } from "@/lib/utils";
@@ -92,72 +94,21 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
     after(() => kickQueueIfDue().catch((err) => console.error("kickQueueIfDue", err)));
   }
 
-  const [statsMap, messages, sentToday, files] = await Promise.all([
+  const [statsMap, report, sentToday] = await Promise.all([
     campaignStats([id]),
-    db.message.findMany({
-      where: { campaignId: id },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        toEmail: true,
-        status: true,
-        sentAt: true,
-        error: true,
-        contact: { select: { name: true, email: true, org: true, fields: true } },
-        events: {
-          select: { type: true, at: true, isPrefetch: true, isBot: true, link: { select: { url: true } } },
-        },
-      },
-    }),
+    campaignReport(id),
     campaign.gmailAccount ? sentInLastDay(campaign.gmailAccount.id) : Promise.resolve(0),
-    db.attachment.findMany({
-      where: { campaignId: id },
-      orderBy: { createdAt: "asc" },
-      select: { name: true, size: true, url: true },
-    }),
   ]);
+  const { rows, files, sampleVars, sampleName } = report;
   const s = statsMap.get(id)!;
   const account = campaign.gmailAccount;
   const quotaReached = account && sentToday >= account.dailyLimit && s.queued > 0;
   const progress = s.total ? ((s.sent + s.failed + s.cancelled) / s.total) * 100 : 0;
-  const fileUrls = new Set(files.map((f) => f.url));
-  const hasFiles = campaign.linkAttachments && fileUrls.size > 0;
-
-  const rows: RecipientRowData[] = messages.map((m) => {
-    const summary = summarize(
-      m.events.map((e) => ({ ...e, type: e.type === "OPEN" ? ("open" as const) : ("click" as const) })),
-      m.sentAt,
-    );
-    return {
-      id: m.id,
-      name: m.contact?.name ?? null,
-      email: m.toEmail,
-      org: m.contact?.org ?? null,
-      status: m.status,
-      error: m.error,
-      sentAt: m.sentAt?.toISOString() ?? null,
-      opens: summary.opens,
-      onlyPrefetched: summary.onlyPrefetched,
-      clicks: summary.clicks,
-      fileOpens: m.events.filter(
-        (e) => e.type === "CLICK" && !e.isBot && !e.isPrefetch && e.link && fileUrls.has(e.link.url),
-      ).length,
-      lastOpenAt: summary.lastOpenAt?.toISOString() ?? null,
-    };
-  });
+  const hasFiles = campaign.linkAttachments && files.length > 0;
   const fileOpeners = rows.filter((r) => r.fileOpens > 0).length;
 
   // The email as the first recipient received it (tracking removed).
-  const sample = messages.find((m) => m.status === "SENT") ?? messages[0];
-  const vars = sample?.contact
-    ? contactVars({
-        email: sample.contact.email,
-        name: sample.contact.name,
-        org: sample.contact.org,
-        fields: sample.contact.fields as Record<string, unknown> | null,
-      })
-    : { email: sample?.toEmail };
-  const previewHtml = textToHtml(renderTemplate(campaign.body, vars).output, {
+  const previewHtml = textToHtml(renderTemplate(campaign.body, sampleVars).output, {
     files: campaign.linkAttachments ? files : [],
   });
 
@@ -185,7 +136,19 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
             )}
           </span>
         }
-        actions={<CampaignControls id={id} status={campaign.status} queued={s.queued} />}
+        actions={
+          <>
+            <a href={`/dashboard/campaigns/${id}/export`} className={buttonClass({ variant: "secondary", size: "sm" })}>
+              <Download className="size-3.5" />
+              CSV
+            </a>
+            <Link href={`/dashboard/campaigns/${id}/report`} className={buttonClass({ variant: "secondary", size: "sm" })}>
+              <FileText className="size-3.5" />
+              Report
+            </Link>
+            <CampaignControls id={id} status={campaign.status} queued={s.queued} />
+          </>
+        }
       />
 
       {account?.needsReconnect && s.queued > 0 && (
@@ -232,7 +195,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
           <ChevronRight className="size-4 shrink-0 text-faint transition-transform duration-200 group-open:rotate-90" />
           <span className="text-sm text-muted">Sent email</span>
           <span className="min-w-0 flex-1 truncate font-medium">
-            {renderTemplate(campaign.subject, vars).output || "(no subject)"}
+            {renderTemplate(campaign.subject, sampleVars).output || "(no subject)"}
           </span>
           {files.length > 0 && (
             <span className="inline-flex shrink-0 items-center gap-1 text-sm text-faint">
@@ -243,7 +206,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
         </summary>
         <div className="border-t border-line">
           <p className="px-5 py-3 text-xs text-faint">
-            As {sample?.contact?.name ?? sample?.toEmail ?? "the first recipient"} received it. Every recipient got
+            As {sampleName ?? "the first recipient"} received it. Every recipient got
             their own merge fields.
           </p>
           {files.length > 0 && (
