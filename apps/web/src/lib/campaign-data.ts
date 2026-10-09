@@ -78,15 +78,3 @@ export async function listTemplates(workspaceId: string) {
     select: { id: true, name: true, subject: true, body: true },
   });
 }
-
-/** Workspace totals: emails sent, and how many of them got a real open or click. */
-export async function workspaceStats(workspaceId: string) {
-  const [row] = await db.$queryRaw<{ sent: bigint; opened: bigint; clicked: bigint }[]>`
-    SELECT
-      (SELECT count(*) FROM "Message" WHERE "workspaceId" = ${workspaceId} AND status = 'SENT') AS sent,
-      count(DISTINCT e."messageId") FILTER (WHERE e.type = 'OPEN') AS opened,
-      count(DISTINCT e."messageId") FILTER (WHERE e.type = 'CLICK') AS clicked
-    FROM "Event" e JOIN "Message" m ON m.id = e."messageId"
-    WHERE m."workspaceId" = ${workspaceId} AND NOT e."isPrefetch" AND NOT e."isBot"`;
-  return { sent: Number(row.sent), opened: Number(row.opened), clicked: Number(row.clicked) };
-}
