@@ -655,7 +655,7 @@ export function CampaignEditor({
             title="Email preview"
             sandbox=""
             srcDoc={html}
-            className="h-[420px] w-full bg-white"
+            className="h-[420px] w-full bg-[#fff]"
           />
         </div>
 
@@ -675,7 +675,7 @@ export function CampaignEditor({
                 type="datetime-local"
                 value={scheduleAt}
                 onChange={(e) => setScheduleAt(e.target.value)}
-                className={cn(inputClass, "w-full [color-scheme:dark]")}
+                className={cn(inputClass, "w-full")}
               />
             </label>
             <Button onClick={launch} disabled={pending || total === 0 || !account}>

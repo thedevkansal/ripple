@@ -101,7 +101,7 @@ export function TemplateEditor({
           title="Template preview"
           sandbox=""
           srcDoc={textToHtml(renderTemplate(form.body, SAMPLE).output)}
-          className="h-[480px] w-full bg-white"
+          className="h-[480px] w-full bg-[#fff]"
         />
       </div>
     </div>

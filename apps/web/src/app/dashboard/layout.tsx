@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { LogoMark, Logo } from "@/components/brand/logo";
 import { SidebarNav, SidebarNavList } from "@/components/dashboard/sidebar-nav";
 import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { requireWorkspace } from "@/lib/workspace";
 import { signOutAction } from "./actions";
 
@@ -37,6 +38,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
               <Workspaces />
             </Suspense>
           </div>
+          <ThemeToggle />
         </div>
         <Suspense fallback={<SidebarNavList orientation="horizontal" pathname={null} />}>
           <SidebarNav orientation="horizontal" />
@@ -73,6 +75,7 @@ async function UserMenu() {
         <p className="truncate text-sm font-medium">{user.name}</p>
         <p className="truncate text-xs text-faint">{user.email}</p>
       </div>
+      <ThemeToggle className="size-8 rounded-lg" />
       <form action={signOutAction}>
         <button
           type="submit"

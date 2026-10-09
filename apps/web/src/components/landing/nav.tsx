@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { auth } from "@/auth";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const LINKS = [
   { href: "#how", label: "How it works" },
@@ -28,6 +29,7 @@ export function Nav() {
           ))}
         </ul>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Suspense fallback={<SignedOutActions />}>
             <NavActions />
           </Suspense>

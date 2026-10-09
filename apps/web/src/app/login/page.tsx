@@ -86,7 +86,7 @@ function GoogleButton({ disabled }: { disabled?: boolean }) {
       variant="secondary"
       size="lg"
       disabled={disabled}
-      className="mt-8 w-full rounded-2xl bg-white text-[#1f1f1f] hover:bg-white/90"
+      className="mt-8 w-full rounded-2xl border-[#dadce0] bg-[#fff] text-[#1f1f1f] hover:bg-[#f1f3f4]"
     >
       <GoogleIcon className="size-5" />
       Continue with Google

@@ -264,7 +264,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
               ))}
             </ul>
           )}
-          <iframe title="Sent email" sandbox="" srcDoc={previewHtml} className="h-[460px] w-full bg-white" />
+          <iframe title="Sent email" sandbox="" srcDoc={previewHtml} className="h-[460px] w-full bg-[#fff]" />
         </div>
       </details>
 
