@@ -78,6 +78,7 @@ model Workspace {
 
   members   Member[]
   invites   Invite[]
+  templates Template[]
   contacts  Contact[]
   campaigns   Campaign[]
   messages    Message[]
@@ -139,6 +140,8 @@ model Contact {
   name        String?
   org         String?
   tags        String[]
+  /// Other addresses of the same person (email 2, alt email...), CC'd on their emails.
+  ccEmails    String[]
   /// Extra CSV columns, usable as merge fields.
   fields      Json?
   createdAt   DateTime @default(now())
@@ -169,6 +172,8 @@ model Campaign {
   /// Source text: blank-line paragraphs, [label](url) links, **bold**, {{merge|fallback}} fields.
   body           String
   trackClicks    Boolean        @default(true)
+  /// CC'd on every email in the campaign, e.g. a shared team inbox.
+  cc             String[]
   /// Add a tracked "View" link under the body for each attached file.
   linkAttachments Boolean       @default(true)
   status         CampaignStatus @default(DRAFT)
@@ -226,6 +231,8 @@ model Message {
   gmailAccountId String?
   contactId      String?
   toEmail        String
+  /// Addresses actually CC'd when sent.
+  cc             String[]
   subject        String
   source         MessageSource
   status         MessageStatus @default(QUEUED)
@@ -285,4 +292,20 @@ model Event {
 
   @@index([messageId, at])
   @@index([at])
+}
+
+/// Reusable subject + body for campaigns (first invite, follow-up, thank-you...).
+model Template {
+  id          String   @id @default(cuid())
+  workspaceId String
+  createdById String
+  name        String
+  subject     String
+  body        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, updatedAt])
 }

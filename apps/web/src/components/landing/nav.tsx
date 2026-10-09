@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
+import { auth } from "@/auth";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
 
@@ -25,12 +28,30 @@ export function Nav() {
           ))}
         </ul>
         <div className="flex items-center gap-2">
-          <ButtonLink href="/login" variant="ghost" className="hidden sm:inline-flex">
-            Sign in
-          </ButtonLink>
-          <ButtonLink href="/login">Start free</ButtonLink>
+          <Suspense fallback={<SignedOutActions />}>
+            <NavActions />
+          </Suspense>
         </div>
       </nav>
     </header>
   );
+}
+
+function SignedOutActions() {
+  return (
+    <>
+      <ButtonLink href="/login" variant="ghost" className="hidden sm:inline-flex">
+        Sign in
+      </ButtonLink>
+      <ButtonLink href="/login">Start free</ButtonLink>
+    </>
+  );
+}
+
+/** Signed-in visitors (e.g. via the dashboard logo) get a way straight back. */
+async function NavActions() {
+  await connection();
+  const session = await auth();
+  if (!session?.user) return <SignedOutActions />;
+  return <ButtonLink href="/dashboard">Open dashboard</ButtonLink>;
 }

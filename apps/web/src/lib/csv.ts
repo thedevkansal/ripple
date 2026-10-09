@@ -6,23 +6,30 @@ export interface RecipientRow {
   name?: string;
   org?: string;
   tags?: string[];
+  /** Other addresses of the same person, CC'd on their email. */
+  cc?: string[];
   fields?: Record<string, string>;
 }
+
+export type ColumnRole = "email" | "cc" | "name" | "first" | "last" | "org" | "tags" | "field";
 
 export interface ParsedCsv {
   rows: RecipientRow[];
   invalid: { line: number; value: string }[];
   duplicates: number;
   /** How each CSV column was understood. */
-  columns: { header: string; key: string; role: "email" | "name" | "org" | "tags" | "field" }[];
+  columns: { header: string; key: string; role: ColumnRole }[];
+  /** Merge fields this file provides, in column order. */
+  mergeFields: string[];
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const ROLES: Record<string, "email" | "name" | "first" | "last" | "org" | "tags"> = {
+const ROLES: Record<string, Exclude<ColumnRole, "cc" | "field">> = {
   email: "email",
   e_mail: "email",
   email_address: "email",
+  email_id: "email",
   mail: "email",
   name: "name",
   full_name: "name",
@@ -42,15 +49,45 @@ const ROLES: Record<string, "email" | "name" | "first" | "last" | "org" | "tags"
   type: "tags",
 };
 
+/** "Email 2", "alt email", "secondary_email", "CC"... */
+const looksLikeEmailColumn = (key: string) => key === "cc" || /(^|_)e?_?mails?(_|$|\d)|^mail\d+$/.test(key);
+
+const MERGE_FIELD: Partial<Record<ColumnRole, string>> = {
+  email: "email",
+  name: "name",
+  first: "first_name",
+  last: "last_name",
+  org: "company",
+};
+
+const splitEmails = (value: string) =>
+  value
+    .split(/[;,\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => EMAIL_RE.test(e));
+
+function classify(headers: string[]): ParsedCsv["columns"] {
+  const keyed = headers.map((header) => ({ header, key: normalizeKey(header) }));
+  // The primary address: a column named like "email", else the first email-looking column.
+  const primary =
+    keyed.find((c) => ROLES[c.key] === "email") ?? keyed.find((c) => c.key !== "cc" && looksLikeEmailColumn(c.key));
+  return keyed.map(({ header, key }) => {
+    let role: ColumnRole;
+    if (primary && header === primary.header) role = "email";
+    else if (looksLikeEmailColumn(key)) role = "cc";
+    else role = ROLES[key] ?? "field";
+    return { header, key, role };
+  });
+}
+
 export function parseRecipientsCsv(text: string): ParsedCsv {
   const { data, meta } = Papa.parse<Record<string, string>>(text.trim(), {
     header: true,
     skipEmptyLines: "greedy",
     transformHeader: (h) => h.trim(),
   });
-  const headers = meta.fields ?? [];
-  const roleOf = (h: string) => ROLES[normalizeKey(h)];
-  const emailHeader = headers.find((h) => roleOf(h) === "email");
+  const columns = classify(meta.fields ?? []);
+  const emailHeader = columns.find((c) => c.role === "email")?.header;
 
   const rows: RecipientRow[] = [];
   const invalid: ParsedCsv["invalid"] = [];
@@ -74,12 +111,16 @@ export function parseRecipientsCsv(text: string): ParsedCsv {
     let last = "";
     let org = "";
     const tags: string[] = [];
+    const cc = new Set<string>();
     const fields: Record<string, string> = {};
-    for (const h of headers) {
-      const value = record[h]?.trim() ?? "";
+    for (const { header, key, role } of columns) {
+      const value = record[header]?.trim() ?? "";
       if (!value) continue;
-      switch (roleOf(h)) {
+      switch (role) {
         case "email":
+          break;
+        case "cc":
+          for (const e of splitEmails(value)) if (e !== email) cc.add(e);
           break;
         case "name":
           name = value;
@@ -97,7 +138,7 @@ export function parseRecipientsCsv(text: string): ParsedCsv {
           tags.push(...value.split(/[;,|]/).map((t) => t.trim().toLowerCase()).filter(Boolean));
           break;
         default:
-          fields[normalizeKey(h)] = value;
+          fields[key] = value;
       }
     }
     rows.push({
@@ -105,23 +146,14 @@ export function parseRecipientsCsv(text: string): ParsedCsv {
       name: name || [first, last].filter(Boolean).join(" ") || undefined,
       org: org || undefined,
       tags: tags.length ? [...new Set(tags)] : undefined,
+      cc: cc.size ? [...cc] : undefined,
       fields: Object.keys(fields).length ? fields : undefined,
     });
   });
 
-  const columns = headers.map((header) => {
-    const role = roleOf(header);
-    return {
-      header,
-      key: normalizeKey(header),
-      role:
-        role === "first" || role === "last"
-          ? ("name" as const)
-          : role === "email" || role === "name" || role === "org" || role === "tags"
-            ? role
-            : ("field" as const),
-    };
-  });
+  const mergeFields = [
+    ...new Set(columns.map((c) => (c.role === "field" ? c.key : MERGE_FIELD[c.role])).filter((f): f is string => !!f)),
+  ];
 
-  return { rows, invalid, duplicates, columns };
+  return { rows, invalid, duplicates, columns, mergeFields };
 }

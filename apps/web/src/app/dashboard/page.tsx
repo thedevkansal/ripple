@@ -2,6 +2,8 @@ import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageBody, PageHeader } from "@/components/dashboard/page-header";
+import { LiveRefresh } from "@/components/ui/live-refresh";
+import { workspaceStats } from "@/lib/campaign-data";
 import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { requireWorkspace } from "@/lib/workspace";
@@ -10,11 +12,13 @@ export const metadata: Metadata = { title: "Overview" };
 
 export default async function OverviewPage() {
   const { user, workspace } = await requireWorkspace();
-  const [gmailCount, memberCount, messageCount] = await Promise.all([
+  const [gmailCount, memberCount, totals] = await Promise.all([
     db.gmailAccount.count({ where: { userId: user.id } }),
     db.member.count({ where: { workspaceId: workspace.id } }),
-    db.message.count({ where: { workspaceId: workspace.id, status: "SENT" } }),
+    workspaceStats(workspace.id),
   ]);
+  const messageCount = totals.sent;
+  const pct = (n: number) => (totals.sent ? `${Math.round((n / totals.sent) * 100)}%` : "–");
 
   const steps = [
     {
@@ -43,6 +47,7 @@ export default async function OverviewPage() {
 
   return (
     <PageBody>
+      <LiveRefresh seconds={30} />
       <PageHeader
         title={`Hi, ${user.name?.split(" ")[0] ?? "there"}`}
         description={`You're in ${workspace.name}.`}
@@ -95,10 +100,10 @@ export default async function OverviewPage() {
 
       <section className="mt-10 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: "Sent", value: messageCount },
-          { label: "Real opens", value: 0 },
-          { label: "Clicks", value: 0 },
-          { label: "Open rate", value: "–" },
+          { label: "Emails sent", value: totals.sent },
+          { label: "Opened", value: totals.opened },
+          { label: "Open rate", value: pct(totals.opened) },
+          { label: "Click rate", value: pct(totals.clicked) },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl border border-line bg-ink-raised/40 px-5 py-4">
             <p className="text-sm text-muted">{s.label}</p>

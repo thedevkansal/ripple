@@ -163,9 +163,15 @@ async function sendOne(
       await db.link.createMany({ data: email.links.map((l) => ({ messageId, index: l.index, url: l.url })) });
     }
 
+    // The person's other addresses plus the campaign's always-CC list, never the To address itself.
+    const cc = [...new Set([...(message.contact?.ccEmails ?? []), ...campaign.cc])].filter(
+      (a) => a !== message.toEmail && a !== from.email,
+    );
+
     const { id } = await sendViaGmail(accessToken, {
       from,
       to: { email: message.toEmail, name: message.contact?.name },
+      cc,
       subject: email.subject,
       html: email.html,
       text: email.text,
@@ -174,7 +180,7 @@ async function sendOne(
     const sentAt = new Date();
     await db.message.update({
       where: { id: messageId },
-      data: { status: "SENT", sentAt, subject, gmailMessageId: id, error: null },
+      data: { status: "SENT", sentAt, subject, cc, gmailMessageId: id, error: null },
     });
     if (!campaign.startedAt || campaign.status !== "SENDING") {
       await db.campaign.update({

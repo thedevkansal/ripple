@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 border-r border-line bg-ink-sunken/60 px-3 py-5 md:flex">
-        <Link href="/dashboard" className="px-2" aria-label="Ripple dashboard">
+        <Link href="/" className="px-2" aria-label="Ripple home">
           <Logo />
         </Link>
         <Suspense fallback={<div className="h-[42px] rounded-xl border border-line" />}>
@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
 
       <header className="sticky top-0 z-40 flex flex-col gap-3 border-b border-line bg-ink/80 px-4 pt-3 pb-2 backdrop-blur-xl md:hidden">
         <div className="flex items-center justify-between gap-3">
-          <Link href="/dashboard" aria-label="Ripple dashboard">
+          <Link href="/" aria-label="Ripple home">
             <LogoMark />
           </Link>
           <div className="min-w-0 flex-1">

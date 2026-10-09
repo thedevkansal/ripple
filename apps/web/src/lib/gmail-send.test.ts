@@ -52,3 +52,18 @@ describe("buildMime with attachments", () => {
     expect(mime.trimEnd()).toMatch(/--rpl_[0-9a-f]{24}--$/);
   });
 });
+
+describe("buildMime cc", () => {
+  test("adds a Cc header and keeps it injection-safe", () => {
+    const mime = buildMime({
+      from: { email: "dev@gmail.com" },
+      to: { email: "p@x.com" },
+      cc: ["p.work@y.com", "esummit@iitr.ac.in\r\nBcc: evil@x.com"],
+      subject: "Hi",
+      html: "<p>Hi</p>",
+      text: "Hi",
+    });
+    expect(mime).toContain("\r\nCc: p.work@y.com, esummit@iitr.ac.in Bcc: evil@x.com\r\n");
+    expect(mime).not.toMatch(/^Bcc:/m);
+  });
+});

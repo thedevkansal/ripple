@@ -44,6 +44,16 @@ const FILTERS: { key: Filter; label: string; test: (r: RecipientRowData) => bool
   { key: "failed", label: "Failed", test: (r) => r.status === "FAILED" },
 ];
 
+const SORT_OPTIONS: { key: SortKey; desc: boolean; label: string }[] = [
+  { key: "lastOpenAt", desc: true, label: "Recently opened" },
+  { key: "opens", desc: true, label: "Most opens" },
+  { key: "clicks", desc: true, label: "Most clicks" },
+  { key: "fileOpens", desc: true, label: "Most file opens" },
+  { key: "sentAt", desc: true, label: "Recently sent" },
+  { key: "name", desc: false, label: "Name A–Z" },
+  { key: "status", desc: false, label: "Status" },
+];
+
 function compare(a: RecipientRowData, b: RecipientRowData, key: SortKey): number {
   switch (key) {
     case "name":
@@ -136,7 +146,28 @@ export function RecipientsTable({ rows, showFiles }: { rows: RecipientRowData[];
               </button>
             ))}
         </div>
-        <label className="relative ml-auto w-full sm:w-64">
+        <label className="ml-auto flex items-center gap-2 text-sm text-muted">
+          Sort by
+          <select
+            value={`${sort.key}:${sort.desc ? "desc" : "asc"}`}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":") as [SortKey, string];
+              setSort({ key, desc: dir === "desc" });
+            }}
+            className={cn(inputClass, "h-9")}
+          >
+            {SORT_OPTIONS.filter((o) => o.key !== "fileOpens" || showFiles).map((o) => (
+              <option key={`${o.key}:${o.desc ? "desc" : "asc"}`} value={`${o.key}:${o.desc ? "desc" : "asc"}`}>
+                {o.label}
+              </option>
+            ))}
+            {/* Column-header clicks can pick a direction the presets don't list. */}
+            {!SORT_OPTIONS.some((o) => o.key === sort.key && o.desc === sort.desc) && (
+              <option value={`${sort.key}:${sort.desc ? "desc" : "asc"}`}>Custom (column)</option>
+            )}
+          </select>
+        </label>
+        <label className="relative w-full sm:w-56">
           <span className="sr-only">Search recipients</span>
           <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-faint" />
           <input
@@ -196,9 +227,9 @@ export function RecipientsTable({ rows, showFiles }: { rows: RecipientRowData[];
                   {showFiles && (
                     <td className="tabular px-3 py-3 text-right">
                       {m.fileOpens > 0 ? (
-                        <span className="text-dusk">opened {m.fileOpens}×</span>
+                        <span className="text-dusk">{m.fileOpens}</span>
                       ) : (
-                        <span className="text-faint">–</span>
+                        <span className="text-faint">0</span>
                       )}
                     </td>
                   )}

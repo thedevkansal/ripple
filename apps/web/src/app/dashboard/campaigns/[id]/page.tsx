@@ -11,7 +11,8 @@ import { StatusBadge } from "@/components/campaigns/status-badge";
 import { PageBody, PageHeader } from "@/components/dashboard/page-header";
 import { LiveRefresh } from "@/components/ui/live-refresh";
 import { LocalTime } from "@/components/ui/local-time";
-import { campaignStats, contactTagCounts, senderAccounts } from "@/lib/campaign-data";
+import { ResetOnNavigate } from "@/components/ui/reset-on-navigate";
+import { campaignStats, contactTagCounts, listTemplates, senderAccounts } from "@/lib/campaign-data";
 import { db } from "@/lib/db";
 import { kickQueueIfDue, sentInLastDay } from "@/lib/queue";
 import { cn } from "@/lib/utils";
@@ -29,9 +30,10 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
   if (!campaign) notFound();
 
   if (campaign.status === "DRAFT") {
-    const [accounts, tags, attachments, messages] = await Promise.all([
+    const [accounts, tags, templates, attachments, messages] = await Promise.all([
       senderAccounts(user.id),
       contactTagCounts(workspace.id),
+      listTemplates(workspace.id),
       db.attachment.findMany({
         where: { campaignId: id },
         orderBy: { createdAt: "asc" },
@@ -40,25 +42,21 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
       db.message.findMany({
         where: { campaignId: id },
         orderBy: { createdAt: "asc" },
-        select: { toEmail: true, contact: { select: { name: true, org: true, tags: true, fields: true } } },
+        select: {
+          toEmail: true,
+          contact: { select: { name: true, org: true, tags: true, ccEmails: true, fields: true } },
+        },
       }),
     ]);
     return (
       <PageBody>
         <PageHeader
           title={campaign.name}
-          description={
-            <>
-              <StatusBadge status="DRAFT" />
-              <span className="ml-3">
-                <Link href="/dashboard/campaigns" className="hover:text-text">
-                  All campaigns
-                </Link>
-              </span>
-            </>
-          }
+          back={{ href: "/dashboard/campaigns", label: "Campaigns" }}
+          description={<StatusBadge status="DRAFT" />}
         />
         <div className="mt-8">
+          <ResetOnNavigate>
           <CampaignEditor
             initial={{
               id: campaign.id,
@@ -69,20 +67,24 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
               body: campaign.body,
               trackClicks: campaign.trackClicks,
               linkAttachments: campaign.linkAttachments,
+              cc: campaign.cc,
             }}
             initialRecipients={messages.map((m) => ({
               email: m.toEmail,
               name: m.contact?.name ?? undefined,
               org: m.contact?.org ?? undefined,
               tags: m.contact?.tags,
+              cc: m.contact?.ccEmails.length ? m.contact.ccEmails : undefined,
               fields: (m.contact?.fields as Record<string, string> | null) ?? undefined,
             }))}
             initialAttachments={attachments}
+            templates={templates}
             workspaceId={workspace.id}
             accounts={accounts}
             tags={tags}
             senderName={user.name ?? ""}
           />
+          </ResetOnNavigate>
         </div>
       </PageBody>
     );
@@ -169,6 +171,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
       <LiveRefresh seconds={live ? 10 : 30} />
       <PageHeader
         title={campaign.name}
+        back={{ href: "/dashboard/campaigns", label: "Campaigns" }}
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <StatusBadge status={campaign.status} />

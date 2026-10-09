@@ -40,6 +40,7 @@ export interface MailAttachment {
 export interface OutgoingEmail {
   from: { email: string; name?: string | null };
   to: { email: string; name?: string | null };
+  cc?: string[];
   subject: string;
   html: string;
   text: string;
@@ -67,6 +68,7 @@ export function buildMime(email: OutgoingEmail): string {
   const headers = [
     `From: ${formatAddress(clean(email.from.email), email.from.name && clean(email.from.name))}`,
     `To: ${formatAddress(clean(email.to.email), email.to.name && clean(email.to.name))}`,
+    ...(email.cc?.length ? [`Cc: ${email.cc.map((a) => clean(a)).join(", ")}`] : []),
     `Subject: ${encodeHeader(clean(email.subject))}`,
     "MIME-Version: 1.0",
   ];

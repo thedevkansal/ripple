@@ -23,6 +23,7 @@ const recipientSchema = z.object({
   org: z.string().trim().max(120).optional(),
   tags: z.array(z.string().trim().toLowerCase().max(40)).max(20).optional(),
   fields: z.record(z.string().max(60), z.string().max(500)).optional(),
+  cc: z.array(z.email().transform((e) => e.toLowerCase())).max(10).optional(),
 });
 export type RecipientInput = z.input<typeof recipientSchema>;
 
@@ -40,6 +41,8 @@ const campaignSchema = z.object({
   contactTags: z.array(z.string()).max(20),
   attachmentIds: z.array(z.string()).max(10),
   linkAttachments: z.boolean(),
+  /** CC on every email, e.g. a shared team inbox. */
+  cc: z.array(z.email().transform((e) => e.toLowerCase())).max(10),
 });
 export type CampaignInput = z.input<typeof campaignSchema>;
 
@@ -93,7 +96,7 @@ export async function removeAttachment(id: string) {
 async function upsertContacts(workspaceId: string, rows: z.output<typeof recipientSchema>[]) {
   const existing = await db.contact.findMany({
     where: { workspaceId, email: { in: rows.map((r) => r.email) } },
-    select: { id: true, email: true, tags: true, fields: true },
+    select: { id: true, email: true, tags: true, ccEmails: true, fields: true },
   });
   const byEmail = new Map(existing.map((c) => [c.email, c]));
 
@@ -106,6 +109,7 @@ async function upsertContacts(workspaceId: string, rows: z.output<typeof recipie
         name: r.name,
         org: r.org,
         tags: r.tags ?? [],
+        ccEmails: r.cc ?? [],
         fields: (r.fields ?? undefined) as Prisma.InputJsonValue | undefined,
       })),
       skipDuplicates: true,
@@ -122,6 +126,7 @@ async function upsertContacts(workspaceId: string, rows: z.output<typeof recipie
           ...(r.name && { name: r.name }),
           ...(r.org && { org: r.org }),
           tags: [...new Set([...prev.tags, ...(r.tags ?? [])])],
+          ccEmails: [...new Set([...prev.ccEmails, ...(r.cc ?? [])])],
           fields: { ...((prev.fields as Record<string, string>) ?? {}), ...(r.fields ?? {}) },
         },
         select: { id: true },
@@ -198,6 +203,7 @@ export async function saveCampaign(input: CampaignInput): Promise<SaveResult> {
     body: data.body,
     trackClicks: data.trackClicks,
     linkAttachments: data.linkAttachments,
+    cc: [...new Set(data.cc)],
   };
 
   const removed = campaignId

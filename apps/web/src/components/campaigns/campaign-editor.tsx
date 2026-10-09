@@ -2,7 +2,7 @@
 
 import { contactVars, formatBytes, listMergeFields, renderTemplate, textToHtml } from "@ripple/shared";
 import { upload } from "@vercel/blob/client";
-import { ChevronLeft, ChevronRight, FileUp, Paperclip, Send, Trash2, X } from "lucide-react";
+import { BookmarkPlus, ChevronLeft, ChevronRight, FileUp, Paperclip, Send, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
@@ -14,10 +14,11 @@ import {
   sendTest,
   type CampaignInput,
 } from "@/app/dashboard/campaigns/actions";
+import { saveTemplate, type TemplateInfo } from "@/app/dashboard/templates/actions";
 import { inputClass } from "@/components/dashboard/forms";
 import { Button } from "@/components/ui/button";
 import { ACCEPT_ATTR, type AttachmentInfo, attachmentPrefix, MAX_TOTAL_BYTES } from "@/lib/attachments";
-import { parseRecipientsCsv, type ParsedCsv, type RecipientRow } from "@/lib/csv";
+import { EMAIL_RE, parseRecipientsCsv, type ParsedCsv, type RecipientRow } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 
 export interface SenderAccount {
@@ -38,9 +39,11 @@ export interface EditorProps {
     body: string;
     trackClicks: boolean;
     linkAttachments: boolean;
+    cc: string[];
   };
   initialRecipients: RecipientRow[];
   initialAttachments: AttachmentInfo[];
+  templates: TemplateInfo[];
   workspaceId: string;
   accounts: SenderAccount[];
   tags: { tag: string; count: number }[];
@@ -56,6 +59,7 @@ export function CampaignEditor({
   initial,
   initialRecipients,
   initialAttachments,
+  templates: initialTemplates,
   workspaceId,
   accounts,
   tags,
@@ -63,6 +67,10 @@ export function CampaignEditor({
 }: EditorProps) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
+  const [ccText, setCcText] = useState(initial.cc.join(", "));
+  const [templates, setTemplates] = useState(initialTemplates);
+  // Merge fields offered by uploaded CSVs; null until a file is uploaded in this session.
+  const [csvFields, setCsvFields] = useState<string[] | null>(null);
   const [recipients, setRecipients] = useState<RecipientRow[]>(initialRecipients);
   const [contactTags, setContactTags] = useState<string[]>([]);
   const [csvInfo, setCsvInfo] = useState<Pick<ParsedCsv, "invalid" | "duplicates" | "columns"> | null>(null);
@@ -85,19 +93,27 @@ export function CampaignEditor({
   const tagCount = tags.filter((t) => contactTags.includes(t.tag)).reduce((n, t) => n + t.count, 0);
   const total = recipients.length + tagCount; // upper bound; overlaps are merged on save
 
-  // Offer only fields the recipients actually have. With no list yet, show the usual ones.
+  // Offer only fields the list actually has: the uploaded CSV's columns, or for a saved draft,
+  // what its recipients carry. With no list yet, show the usual ones.
   const { baseFields, customFields } = useMemo(() => {
-    if (!recipients.length) return { baseFields: ["first_name", "name", "company", "email"], customFields: [] };
+    const BASE = ["email", "name", "first_name", "last_name", "company"];
+    if (csvFields) {
+      return { baseFields: csvFields.filter((f) => BASE.includes(f)), customFields: csvFields.filter((f) => !BASE.includes(f)) };
+    }
+    if (!recipients.length) return { baseFields: ["name", "company", "email"], customFields: [] };
     const base = new Set<string>(["email"]);
     const custom = new Set<string>();
     for (const r of recipients) {
-      if (r.name) base.add("first_name").add("name");
+      if (r.name) base.add("name");
       if (r.org) base.add("company");
       for (const k of Object.keys(r.fields ?? {})) custom.add(k);
     }
-    const order = ["first_name", "name", "company", "email"];
-    return { baseFields: order.filter((k) => base.has(k)), customFields: [...custom] };
-  }, [recipients]);
+    return { baseFields: ["email", "name", "company"].filter((k) => base.has(k)), customFields: [...custom] };
+  }, [recipients, csvFields]);
+
+  const ccList = ccText.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const badCc = ccList.filter((e) => !EMAIL_RE.test(e));
+  const ccCount = recipients.filter((r) => r.cc?.length).length;
 
   const previewRow = recipients[previewIndex] ?? recipients[0] ?? SAMPLE;
   const vars = contactVars(previewRow);
@@ -144,14 +160,40 @@ export function CampaignEditor({
     setCsvError(null);
     const known = new Set(recipients.map((r) => r.email));
     setRecipients([...recipients, ...parsed.rows.filter((r) => !known.has(r.email))]);
+    setCsvFields((prev) => [...new Set([...(prev ?? []), ...parsed.mergeFields])]);
     setCsvInfo(parsed);
     setPreviewIndex(0);
     setNotice(null);
   }
 
   function payload(): CampaignInput {
-    return { ...form, recipients, contactTags, attachmentIds: attachments.map((a) => a.id) };
+    return {
+      ...form,
+      cc: [...new Set(ccList)],
+      recipients,
+      contactTags,
+      attachmentIds: attachments.map((a) => a.id),
+    };
   }
+
+  function loadTemplate(id: string) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    if ((form.subject || form.body.trim()) && !confirm(`Replace the subject and message with “${t.name}”?`)) return;
+    setForm((f) => ({ ...f, subject: t.subject, body: t.body }));
+    setNotice({ tone: "ok", text: `Loaded “${t.name}”.` });
+  }
+
+  const saveAsTemplate = () => {
+    const name = prompt("Name this template", form.name || "Untitled template")?.trim();
+    if (!name) return;
+    run(async () => {
+      const res = await saveTemplate({ name, subject: form.subject, body: form.body });
+      if (!res.ok) return setNotice({ tone: "error", text: res.error });
+      setTemplates((list) => [res.template, ...list]);
+      setNotice({ tone: "ok", text: `Saved as template “${name}”.` });
+    });
+  };
 
   async function onAttach(files: FileList) {
     setNotice(null);
@@ -183,6 +225,10 @@ export function CampaignEditor({
 
   function run(task: () => Promise<void>) {
     setNotice(null);
+    if (badCc.length) {
+      setNotice({ tone: "error", text: `Fix the CC address${badCc.length > 1 ? "es" : ""}: ${badCc.join(", ")}` });
+      return;
+    }
     startTransition(async () => {
       try {
         await task();
@@ -279,11 +325,29 @@ export function CampaignEditor({
               </select>
             )}
           </Field>
+          <Field label="Always CC" className="mt-4">
+            <input
+              value={ccText}
+              onChange={(e) => setCcText(e.target.value)}
+              placeholder="esummit@iitr.ac.in"
+              aria-invalid={badCc.length > 0}
+              className={cn(inputClass, "w-full", badCc.length > 0 && "border-red-400/50")}
+            />
+          </Field>
+          <p className={cn("mt-1.5 text-xs", badCc.length ? "text-red-300" : "text-faint")}>
+            {badCc.length
+              ? `Not a valid address: ${badCc.join(", ")}`
+              : "CC’d on every email, e.g. your team inbox. Separate several with commas. People CC’d see the same email, so their opens and clicks count toward the main recipient."}
+          </p>
         </Card>
 
         <Card
           title="Recipients"
-          aside={<span className="tabular text-sm text-muted">{total} total</span>}
+          aside={
+            <span className="tabular text-sm text-muted">
+              {total} total{ccCount > 0 && `, ${ccCount} with extra CC`}
+            </span>
+          }
         >
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -308,6 +372,7 @@ export function CampaignEditor({
                 onClick={() => {
                   setRecipients([]);
                   setCsvInfo(null);
+                  setCsvFields(null);
                 }}
               >
                 Clear list
@@ -358,6 +423,11 @@ export function CampaignEditor({
                     {r.name && <span className="ml-2 text-faint">{r.email}</span>}
                   </span>
                   {r.org && <span className="hidden truncate text-muted sm:inline">{r.org}</span>}
+                  {r.cc?.length ? (
+                    <span className="shrink-0 rounded-md bg-dusk/10 px-1.5 py-0.5 text-xs text-dusk" title={`CC: ${r.cc.join(", ")}`}>
+                      +{r.cc.length} cc
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     aria-label={`Remove ${r.email}`}
@@ -399,7 +469,32 @@ export function CampaignEditor({
           )}
         </Card>
 
-        <Card title="Message">
+        <Card
+          title="Message"
+          aside={
+            <div className="flex items-center gap-2">
+              {templates.length > 0 && (
+                <select
+                  aria-label="Load a template"
+                  value=""
+                  onChange={(e) => loadTemplate(e.target.value)}
+                  className={cn(inputClass, "h-8 max-w-[11rem] text-[13px]")}
+                >
+                  <option value="">Load template…</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button variant="ghost" size="sm" onClick={saveAsTemplate} disabled={pending}>
+                <BookmarkPlus className="size-3.5" />
+                Save as template
+              </Button>
+            </div>
+          }
+        >
           <Field label="Subject">
             <input
               value={form.subject}
@@ -652,7 +747,7 @@ export function CampaignEditor({
 function Card({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="rounded-2xl border border-line-strong bg-ink-raised/40 p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-medium">{title}</h2>
         {aside}
       </div>
