@@ -14,7 +14,7 @@ const LINKS = [
 
 export function Nav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-ink/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-line bg-chrome backdrop-blur-xl">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
         <Link href="/" aria-label="Ripple home">
           <Logo />

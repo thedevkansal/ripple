@@ -6,7 +6,7 @@ export function ClosingCta() {
     <section className="relative overflow-hidden border-t border-line">
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-[-60%] left-1/2 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(124_243_224/0.14),transparent)] blur-3xl"
+        className="pointer-events-none absolute bottom-[-60%] left-1/2 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--glow)_14%,transparent),transparent)] blur-3xl"
       />
       <div className="relative mx-auto flex max-w-6xl flex-col items-center px-4 py-28 text-center sm:px-6">
         <h2 className="max-w-2xl text-4xl leading-[1.05] font-semibold tracking-[-0.035em] sm:text-6xl">

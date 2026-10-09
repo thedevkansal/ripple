@@ -23,7 +23,7 @@ export function Steps() {
         <ol className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
           {STEPS.map((s, i) => (
             <li key={s.title} className="relative">
-              <span className="tabular block text-5xl font-semibold tracking-[-0.04em] text-transparent [-webkit-text-stroke:1.25px_rgb(124_243_224/0.55)]">
+              <span className="tabular block text-5xl font-semibold tracking-[-0.04em] text-transparent [-webkit-text-stroke:1.25px_color-mix(in_oklab,var(--glow)_55%,transparent)]">
                 {i + 1}
               </span>
               <h3 className="mt-4 text-xl font-medium">{s.title}</h3>

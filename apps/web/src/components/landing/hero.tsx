@@ -7,7 +7,7 @@ export function Hero() {
       {/* Horizon glow */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[1100px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(139_124_255/0.16),transparent)] blur-3xl"
+        className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[1100px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--dusk)_16%,transparent),transparent)] blur-3xl"
       />
       <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pt-16 pb-24 sm:px-6 lg:grid-cols-[1fr_1.05fr] lg:gap-10 lg:pt-24">
         <div className="max-w-xl">

@@ -29,7 +29,7 @@ export function Story() {
           </p>
         </div>
 
-        <div className="rounded-3xl border border-line-strong bg-ink-raised/60 p-5 sm:p-7">
+        <div className="rounded-3xl border border-line-strong bg-surface p-5 sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="grid size-11 place-items-center rounded-full bg-[linear-gradient(135deg,var(--glow),var(--dusk))] text-sm font-semibold text-ink">

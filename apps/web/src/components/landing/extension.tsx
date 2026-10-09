@@ -14,7 +14,7 @@ export function Extension() {
   return (
     <section id="extension" className="scroll-mt-16 border-t border-line">
       <div className="mx-auto grid max-w-6xl gap-14 px-4 py-24 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div className="order-2 overflow-hidden rounded-3xl border border-line-strong bg-ink-raised/60 lg:order-1">
+        <div className="order-2 overflow-hidden rounded-3xl border border-line-strong bg-surface lg:order-1">
           <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
             <p className="text-sm font-medium">Sent</p>
             <span className="inline-flex items-center gap-2 rounded-full border border-glow/30 bg-glow/10 py-1 pr-3 pl-1.5 text-xs text-glow">

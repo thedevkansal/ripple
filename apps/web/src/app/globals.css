@@ -12,7 +12,12 @@
   --glow: #7cf3e0;
   --dusk: #8b7cff;
   --warn: #f5c26b;
-  --glow-shadow: 0 0 0 1px rgb(124 243 224 / 0.5), 0 8px 30px -6px rgb(124 243 224 / 0.55);
+  --glow-shadow: 0 0 0 1px color-mix(in oklab, var(--glow) 50%, transparent), 0 8px 30px -6px color-mix(in oklab, var(--glow) 55%, transparent);
+  /* Cards and panels; nav, sidebar and mobile header. */
+  --surface: rgb(12 18 32 / 0.5);
+  --chrome: rgb(4 6 12 / 0.7);
+  --surface-shadow: none;
+  --chrome-shadow: none;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -25,18 +30,23 @@
  */
 [data-theme="light"] {
   color-scheme: light;
-  --ink: #f5f7fb;
+  /* A cool tinted page so white cards and chrome read as separate layers. */
+  --ink: #eef1f6;
   --ink-raised: #ffffff;
-  --ink-sunken: #edf0f6;
-  --line: rgb(15 23 42 / 0.09);
-  --line-strong: rgb(15 23 42 / 0.16);
+  --ink-sunken: #e6eaf1;
+  --line: rgb(15 23 42 / 0.08);
+  --line-strong: rgb(15 23 42 / 0.13);
   --text: #0b1220;
-  --muted: #4a5568;
-  --faint: #6b7588;
+  --muted: #475467;
+  --faint: #667085;
   --glow: #0b7f70;
   --dusk: #5b46d6;
   --warn: #9a5b0c;
   --glow-shadow: 0 0 0 1px rgb(11 127 112 / 0.35), 0 8px 24px -10px rgb(11 127 112 / 0.5);
+  --surface: #ffffff;
+  --chrome: rgb(255 255 255 / 0.86);
+  --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
+  --chrome-shadow: 0 1px 0 rgb(15 23 42 / 0.04), 0 6px 20px -14px rgb(15 23 42 / 0.25);
 
   --color-white: #0b1220;
   --color-red-200: #b42318;
@@ -56,7 +66,19 @@
   --color-glow: var(--glow);
   --color-dusk: var(--dusk);
   --color-warn: var(--warn);
+  --color-surface: var(--surface);
+  --color-chrome: var(--chrome);
   --font-sans: var(--font-bricolage);
+}
+
+/* Depth for light mode: dark mode separates layers with borders and glow alone. */
+@layer components {
+  .bg-surface {
+    box-shadow: var(--surface-shadow);
+  }
+  .bg-chrome {
+    box-shadow: var(--chrome-shadow);
+  }
 }
 
 html {
@@ -119,8 +141,8 @@ body {
   width: 100%;
   aspect-ratio: 1;
   border-radius: 9999px;
-  border: 1px solid rgb(124 243 224 / 0.55);
-  box-shadow: 0 0 24px rgb(124 243 224 / 0.12), inset 0 0 24px rgb(124 243 224 / 0.08);
+  border: 1px solid color-mix(in oklab, var(--glow) 55%, transparent);
+  box-shadow: 0 0 24px color-mix(in oklab, var(--glow) 12%, transparent), inset 0 0 24px color-mix(in oklab, var(--glow) 8%, transparent);
   animation: ripple-out 4.8s linear infinite;
   will-change: transform, opacity;
 }

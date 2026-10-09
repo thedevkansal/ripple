@@ -54,7 +54,7 @@ export default async function OverviewPage() {
       />
 
       {firstOpen !== -1 && (
-        <section className="mt-10 rounded-3xl border border-line-strong bg-ink-raised/50 p-2">
+        <section className="mt-10 rounded-3xl border border-line-strong bg-surface p-2">
           <h2 className="px-4 pt-4 pb-2 text-sm text-muted">Get set up</h2>
           <ol>
             {steps.map((s, i) => (
@@ -105,7 +105,7 @@ export default async function OverviewPage() {
           { label: "Open rate", value: pct(totals.opened) },
           { label: "Click rate", value: pct(totals.clicked) },
         ].map((s) => (
-          <div key={s.label} className="rounded-2xl border border-line bg-ink-raised/40 px-5 py-4">
+          <div key={s.label} className="rounded-2xl border border-line bg-surface px-5 py-4">
             <p className="text-sm text-muted">{s.label}</p>
             <p className="tabular mt-2 text-3xl font-semibold tracking-[-0.03em]">{s.value}</p>
           </div>

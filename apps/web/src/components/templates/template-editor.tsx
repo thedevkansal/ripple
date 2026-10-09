@@ -33,7 +33,7 @@ export function TemplateEditor({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-      <section className="flex flex-col gap-4 rounded-2xl border border-line-strong bg-ink-raised/40 p-5">
+      <section className="flex flex-col gap-4 rounded-2xl border border-line-strong bg-surface p-5">
         <label className="flex flex-col gap-1.5 text-sm text-muted">
           Template name
           <input
@@ -92,7 +92,7 @@ export function TemplateEditor({
         </div>
       </section>
 
-      <div className="overflow-hidden rounded-2xl border border-line-strong bg-ink-raised/50 lg:sticky lg:top-6 lg:self-start">
+      <div className="overflow-hidden rounded-2xl border border-line-strong bg-surface lg:sticky lg:top-6 lg:self-start">
         <div className="border-b border-line px-4 py-3 text-sm">
           <span className="text-faint">Preview for a sample contact · </span>
           <span className="font-medium">{renderTemplate(form.subject, SAMPLE).output || "(no subject)"}</span>

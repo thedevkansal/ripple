@@ -98,7 +98,7 @@ export function RippleRadar() {
         aria-label="Animated radar: rings spread from a sent email and recipients light up as they open it."
       >
         {/* Water glow */}
-        <div className="absolute inset-[8%] rounded-full bg-[radial-gradient(closest-side,rgb(124_243_224/0.16),rgb(139_124_255/0.07)_55%,transparent)] blur-2xl" />
+        <div className="absolute inset-[8%] rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--glow)_16%,transparent),color-mix(in_oklab,var(--dusk)_7%,transparent)_55%,transparent)] blur-2xl" />
 
         {/* Static depth rings */}
         {[0.25, 0.5, 0.75, 1].map((r) => (
@@ -119,7 +119,7 @@ export function RippleRadar() {
         ))}
 
         {/* The sent email */}
-        <div className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-2xl border border-glow/40 bg-ink-raised shadow-[0_0_40px_rgb(124_243_224/0.35)]">
+        <div className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-2xl border border-glow/40 bg-ink-raised shadow-[0_0_40px_color-mix(in_oklab,var(--glow)_35%,transparent)]">
           <Mail className="size-6 text-glow" strokeWidth={1.75} />
         </div>
 

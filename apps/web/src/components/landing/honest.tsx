@@ -47,7 +47,7 @@ export function Honest() {
             {EVENTS.map((e) => (
               <li
                 key={e.label}
-                className="flex items-start gap-4 rounded-2xl border border-line bg-ink-raised/50 px-5 py-4"
+                className="flex items-start gap-4 rounded-2xl border border-line bg-surface px-5 py-4"
               >
                 <span className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", TONE[e.tone])} />
                 <div className="min-w-0 flex-1">

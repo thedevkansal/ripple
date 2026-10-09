@@ -33,7 +33,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
             style={{ width: `${r * 100}%`, height: `${r * 100}%` }}
           />
         ))}
-        <div className="absolute inset-[30%] rounded-full bg-[radial-gradient(closest-side,rgb(124_243_224/0.12),transparent)] blur-2xl" />
+        <div className="absolute inset-[30%] rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--glow)_12%,transparent),transparent)] blur-2xl" />
       </div>
 
       <div className="relative w-full max-w-sm rounded-3xl border border-line-strong bg-ink-raised/80 p-8 shadow-[0_30px_80px_-30px_rgb(0_0_0/0.9)] backdrop-blur-xl">

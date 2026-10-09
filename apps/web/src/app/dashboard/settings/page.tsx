@@ -259,7 +259,7 @@ function Section({
         </div>
         {action}
       </div>
-      <div className="overflow-hidden rounded-2xl border border-line-strong bg-ink-raised/40">{children}</div>
+      <div className="overflow-hidden rounded-2xl border border-line-strong bg-surface">{children}</div>
     </section>
   );
 }

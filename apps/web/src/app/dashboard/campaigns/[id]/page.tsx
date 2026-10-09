@@ -227,7 +227,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
         <div className="h-full rounded-full bg-glow transition-[width] duration-700" style={{ width: `${progress}%` }} />
       </div>
 
-      <details className="group mt-8 overflow-hidden rounded-2xl border border-line-strong bg-ink-raised/40">
+      <details className="group mt-8 overflow-hidden rounded-2xl border border-line-strong bg-surface">
         <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
           <ChevronRight className="size-4 shrink-0 text-faint transition-transform duration-200 group-open:rotate-90" />
           <span className="text-sm text-muted">Sent email</span>
@@ -278,7 +278,7 @@ const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-2xl border border-line bg-ink-raised/40 px-5 py-4">
+    <div className="rounded-2xl border border-line bg-surface px-5 py-4">
       <p className="text-sm text-muted">{label}</p>
       <p className="tabular mt-2 text-3xl font-semibold tracking-[-0.03em]">{value}</p>
       <p className="mt-0.5 text-xs text-faint">{sub}</p>

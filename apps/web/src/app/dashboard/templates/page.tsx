@@ -45,7 +45,7 @@ export default async function TemplatesPage() {
             <li key={t.id}>
               <Link
                 href={`/dashboard/templates/${t.id}`}
-                className="flex h-full flex-col rounded-2xl border border-line-strong bg-ink-raised/40 p-5 transition-colors duration-150 hover:border-glow/40"
+                className="flex h-full flex-col rounded-2xl border border-line-strong bg-surface p-5 transition-colors duration-150 hover:border-glow/40"
               >
                 <p className="font-medium">{t.name}</p>
                 <p className="mt-1 truncate text-sm text-muted">{t.subject || "(no subject)"}</p>

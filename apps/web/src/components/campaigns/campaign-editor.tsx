@@ -613,7 +613,7 @@ export function CampaignEditor({
       </div>
 
       <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
-        <div className="overflow-hidden rounded-2xl border border-line-strong bg-ink-raised/50">
+        <div className="overflow-hidden rounded-2xl border border-line-strong bg-surface">
           <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2.5">
             <p className="text-sm text-muted">Preview</p>
             {recipients.length > 1 && (
@@ -659,7 +659,7 @@ export function CampaignEditor({
           />
         </div>
 
-        <div className="rounded-2xl border border-line-strong bg-ink-raised/50 p-4">
+        <div className="rounded-2xl border border-line-strong bg-surface p-4">
           {notice && (
             <p
               role={notice.tone === "ok" ? "status" : "alert"}
@@ -718,7 +718,7 @@ export function CampaignEditor({
 
 function Card({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-line-strong bg-ink-raised/40 p-5">
+    <section className="rounded-2xl border border-line-strong bg-surface p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-medium">{title}</h2>
         {aside}
