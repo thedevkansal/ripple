@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateExtension, unauthorized } from "@/lib/extension-auth";
 import { appUrl } from "@/lib/google";
+import { requestMeta } from "@/lib/tracking";
 
 const bodySchema = z.object({
   to: z.array(z.email().transform((e) => e.toLowerCase())).max(100),
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
       token,
       workspaceId: auth.workspaceId,
       senderUserId: auth.userId,
+      senderIp: requestMeta(request).ip,
       contactId: contact.id,
       toEmail: primary,
       cc: others,

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ripple</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon-32.png" width="22" height="22" alt="" />
+      <strong>ripple</strong>
+    </header>
+
+    <section id="connected" hidden>
+      <p class="label">Connected as</p>
+      <p id="who" class="value"></p>
+      <p id="workspace" class="sub"></p>
+      <label class="row">
+        <input type="checkbox" id="trackByDefault" />
+        <span>Track new emails by default</span>
+      </label>
+      <div class="actions">
+        <a id="dashboard" class="button primary" target="_blank" rel="noreferrer">Open dashboard</a>
+        <button id="disconnect" class="button">Disconnect</button>
+      </div>
+    </section>
+
+    <section id="disconnected" hidden>
+      <p class="value">Not connected</p>
+      <p class="sub">Connect the extension to your Ripple account to track emails you send from Gmail.</p>
+      <div class="actions">
+        <a id="connect" class="button primary" target="_blank" rel="noreferrer">Connect to Ripple</a>
+      </div>
+    </section>
+
+    <p id="error" class="error" hidden></p>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -18,4 +18,6 @@ jobs:
       - run: bun run --filter @ripple/web test
       - run: bunx next typegen && bunx tsc --noEmit
         working-directory: apps/web
+      - run: bunx tsc --noEmit
+        working-directory: apps/extension
       - run: bun run lint

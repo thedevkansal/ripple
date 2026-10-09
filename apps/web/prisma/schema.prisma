@@ -245,6 +245,8 @@ model Message {
   claimedAt      DateTime?
   /// Who sent it from Gmail with the extension (campaign emails have a campaign instead).
   senderUserId   String?
+  /// Where the extension registered it from; the compose window loads the pixel from here.
+  senderIp       String?
   /// Last time the sender viewed their own copy; proxy fetches right around it are theirs.
   selfViewAt     DateTime?
   sentAt         DateTime?

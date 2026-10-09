@@ -1,0 +1,17 @@
+{
+  "name": "@ripple/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.ts",
+    "build:dev": "RIPPLE_URL=http://localhost:3000 bun run build.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/chrome": "^0.1.0",
+    "sharp": "^0.34.0",
+    "typescript": "^5"
+  }
+}

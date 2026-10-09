@@ -11,6 +11,7 @@
     "lint": "bun run --filter @ripple/web lint",
     "test": "bun run --filter '*' test",
     "db:generate": "bun run --filter @ripple/web db:generate",
-    "db:push": "bun run --filter @ripple/web db:push"
+    "db:push": "bun run --filter @ripple/web db:push",
+    "build:extension": "bun run --filter @ripple/extension build"
   }
 }

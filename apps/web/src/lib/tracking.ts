@@ -43,23 +43,31 @@ export async function classifyOpen(token: string, meta: RequestMeta): Promise<Cl
       id: true,
       sentAt: true,
       selfViewAt: true,
+      senderIp: true,
       _count: { select: { events: { where: { type: "OPEN", client: "gmail" } } } },
     },
   });
   if (!message) return null;
-  return {
-    messageId: message.id,
-    classification: classify({
-      userAgent: meta.userAgent,
-      ip: meta.ip,
-      at: meta.at,
-      sentAt: message.sentAt,
-      priorGmailFetches: message._count.events,
-    }),
-    isSelf:
-      !!message.selfViewAt && Math.abs(meta.at.getTime() - message.selfViewAt.getTime()) < SELF_VIEW_WINDOW_MS,
-  };
+  const classification = classify({
+    userAgent: meta.userAgent,
+    ip: meta.ip,
+    at: meta.at,
+    sentAt: message.sentAt,
+    priorGmailFetches: message._count.events,
+  });
+  const nearSelfView =
+    !!message.selfViewAt && Math.abs(meta.at.getTime() - message.selfViewAt.getTime()) < SELF_VIEW_WINDOW_MS;
+  // The extension's compose window loads the pixel straight from the sender's browser as it sends.
+  const fromComposeWindow =
+    !classification.isProxy &&
+    !!meta.ip &&
+    meta.ip === message.senderIp &&
+    !!message.sentAt &&
+    meta.at.getTime() - message.sentAt.getTime() < COMPOSE_LOAD_WINDOW_MS;
+  return { messageId: message.id, classification, isSelf: nearSelfView || fromComposeWindow };
 }
+
+const COMPOSE_LOAD_WINDOW_MS = 120_000;
 
 export async function saveOpen({ messageId, classification, isSelf }: ClassifiedOpen, meta: RequestMeta) {
   await db.event.create({
