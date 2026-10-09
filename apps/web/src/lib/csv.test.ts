@@ -19,16 +19,15 @@ describe("parseRecipientsCsv", () => {
         email: "priya@razorpay.com",
         name: "Priya Sharma",
         org: "Razorpay",
-        tags: ["speaker", "fintech"],
         cc: undefined,
-        fields: { talk_topic: "Payments at scale" },
+        fields: { category: "Speaker; Fintech", talk_topic: "Payments at scale" },
       },
-      { email: "arjun@zerodha.com", name: "Arjun", org: "Zerodha", tags: ["sponsor"], cc: undefined, fields: undefined },
+      { email: "arjun@zerodha.com", name: "Arjun", org: "Zerodha", cc: undefined, fields: { category: "sponsor" } },
     ]);
     expect(invalid).toEqual([{ line: 3, value: "not-an-email" }]);
     expect(duplicates).toBe(1);
-    expect(columns.map((c) => c.role)).toEqual(["email", "first", "last", "org", "tags", "field"]);
-    expect(mergeFields).toEqual(["email", "first_name", "last_name", "company", "talk_topic"]);
+    expect(columns.map((c) => c.role)).toEqual(["email", "first", "last", "org", "field", "field"]);
+    expect(mergeFields).toEqual(["email", "first_name", "last_name", "company", "category", "talk_topic"]);
   });
 
   test("extra email columns become CC for that person", () => {

@@ -17,14 +17,6 @@ export async function senderAccounts(userId: string): Promise<SenderAccount[]> {
   );
 }
 
-export async function contactTagCounts(workspaceId: string) {
-  const rows = await db.$queryRaw<{ tag: string; count: bigint }[]>`
-    SELECT unnest(tags) AS tag, count(*) AS count
-    FROM "Contact" WHERE "workspaceId" = ${workspaceId}
-    GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 30`;
-  return rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));
-}
-
 export interface CampaignStats {
   total: number;
   queued: number;

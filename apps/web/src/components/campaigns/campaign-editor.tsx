@@ -46,7 +46,6 @@ export interface EditorProps {
   templates: TemplateInfo[];
   workspaceId: string;
   accounts: SenderAccount[];
-  tags: { tag: string; count: number }[];
   senderName: string;
 }
 
@@ -62,7 +61,6 @@ export function CampaignEditor({
   templates: initialTemplates,
   workspaceId,
   accounts,
-  tags,
   senderName,
 }: EditorProps) {
   const router = useRouter();
@@ -72,7 +70,6 @@ export function CampaignEditor({
   // Merge fields offered by uploaded CSVs; null until a file is uploaded in this session.
   const [csvFields, setCsvFields] = useState<string[] | null>(null);
   const [recipients, setRecipients] = useState<RecipientRow[]>(initialRecipients);
-  const [contactTags, setContactTags] = useState<string[]>([]);
   const [csvInfo, setCsvInfo] = useState<Pick<ParsedCsv, "invalid" | "duplicates" | "columns"> | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [scheduleAt, setScheduleAt] = useState("");
@@ -90,8 +87,7 @@ export function CampaignEditor({
     setForm((f) => ({ ...f, [key]: value }));
 
   const account = accounts.find((a) => a.id === form.gmailAccountId);
-  const tagCount = tags.filter((t) => contactTags.includes(t.tag)).reduce((n, t) => n + t.count, 0);
-  const total = recipients.length + tagCount; // upper bound; overlaps are merged on save
+  const total = recipients.length;
 
   // Offer only fields the list actually has: the uploaded CSV's columns, or for a saved draft,
   // what its recipients carry. With no list yet, show the usual ones.
@@ -171,7 +167,6 @@ export function CampaignEditor({
       ...form,
       cc: [...new Set(ccList)],
       recipients,
-      contactTags,
       attachmentIds: attachments.map((a) => a.id),
     };
   }
@@ -295,7 +290,7 @@ export function CampaignEditor({
                 className={cn(inputClass, "w-full")}
               />
               <datalist id="campaign-tags">
-                {[...new Set([...SUGGESTED_TAGS, ...tags.map((t) => t.tag)])].map((t) => (
+                {SUGGESTED_TAGS.map((t) => (
                   <option key={t} value={t} />
                 ))}
               </datalist>
@@ -385,7 +380,7 @@ export function CampaignEditor({
             </p>
           )}
           <p className="mt-2 text-xs text-faint">
-            Needs an email column. Name, company and tags are picked up automatically; any other column
+            Needs an email column. Extra email columns (Email 2, Alt email) are CC’d, and every other column
             becomes a merge field.
           </p>
 
@@ -441,32 +436,6 @@ export function CampaignEditor({
             </ul>
           )}
 
-          {tags.length > 0 && (
-            <div className="mt-5">
-              <p className="text-sm text-muted">Add saved contacts tagged</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {tags.map((t) => {
-                  const on = contactTags.includes(t.tag);
-                  return (
-                    <button
-                      key={t.tag}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() =>
-                        setContactTags(on ? contactTags.filter((x) => x !== t.tag) : [...contactTags, t.tag])
-                      }
-                      className={cn(
-                        "press rounded-full border px-3 py-1 text-sm",
-                        on ? "border-glow/40 bg-glow/10 text-glow" : "border-line-strong text-muted hover:text-text",
-                      )}
-                    >
-                      {t.tag} <span className="tabular opacity-70">{t.count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </Card>
 
         <Card

@@ -5,13 +5,12 @@ export interface RecipientRow {
   email: string;
   name?: string;
   org?: string;
-  tags?: string[];
   /** Other addresses of the same person, CC'd on their email. */
   cc?: string[];
   fields?: Record<string, string>;
 }
 
-export type ColumnRole = "email" | "cc" | "name" | "first" | "last" | "org" | "tags" | "field";
+export type ColumnRole = "email" | "cc" | "name" | "first" | "last" | "org" | "field";
 
 export interface ParsedCsv {
   rows: RecipientRow[];
@@ -43,10 +42,6 @@ const ROLES: Record<string, Exclude<ColumnRole, "cc" | "field">> = {
   org: "org",
   organization: "org",
   organisation: "org",
-  tags: "tags",
-  tag: "tags",
-  category: "tags",
-  type: "tags",
 };
 
 /** "Email 2", "alt email", "secondary_email", "CC"... */
@@ -110,7 +105,6 @@ export function parseRecipientsCsv(text: string): ParsedCsv {
     let first = "";
     let last = "";
     let org = "";
-    const tags: string[] = [];
     const cc = new Set<string>();
     const fields: Record<string, string> = {};
     for (const { header, key, role } of columns) {
@@ -134,9 +128,6 @@ export function parseRecipientsCsv(text: string): ParsedCsv {
         case "org":
           org = value;
           break;
-        case "tags":
-          tags.push(...value.split(/[;,|]/).map((t) => t.trim().toLowerCase()).filter(Boolean));
-          break;
         default:
           fields[key] = value;
       }
@@ -145,7 +136,6 @@ export function parseRecipientsCsv(text: string): ParsedCsv {
       email,
       name: name || [first, last].filter(Boolean).join(" ") || undefined,
       org: org || undefined,
-      tags: tags.length ? [...new Set(tags)] : undefined,
       cc: cc.size ? [...cc] : undefined,
       fields: Object.keys(fields).length ? fields : undefined,
     });

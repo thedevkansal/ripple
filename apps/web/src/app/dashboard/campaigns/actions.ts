@@ -21,7 +21,6 @@ const recipientSchema = z.object({
   email: z.email().max(254).transform((e) => e.toLowerCase()),
   name: z.string().trim().max(120).optional(),
   org: z.string().trim().max(120).optional(),
-  tags: z.array(z.string().trim().toLowerCase().max(40)).max(20).optional(),
   fields: z.record(z.string().max(60), z.string().max(500)).optional(),
   cc: z.array(z.email().transform((e) => e.toLowerCase())).max(10).optional(),
 });
@@ -37,8 +36,6 @@ const campaignSchema = z.object({
   trackClicks: z.boolean(),
   /** New recipients from a CSV upload. */
   recipients: z.array(recipientSchema).max(MAX_RECIPIENTS),
-  /** Existing contacts picked by tag. */
-  contactTags: z.array(z.string()).max(20),
   attachmentIds: z.array(z.string()).max(10),
   linkAttachments: z.boolean(),
   /** CC on every email, e.g. a shared team inbox. */
@@ -96,7 +93,7 @@ export async function removeAttachment(id: string) {
 async function upsertContacts(workspaceId: string, rows: z.output<typeof recipientSchema>[]) {
   const existing = await db.contact.findMany({
     where: { workspaceId, email: { in: rows.map((r) => r.email) } },
-    select: { id: true, email: true, tags: true, ccEmails: true, fields: true },
+    select: { id: true, email: true, ccEmails: true, fields: true },
   });
   const byEmail = new Map(existing.map((c) => [c.email, c]));
 
@@ -108,7 +105,6 @@ async function upsertContacts(workspaceId: string, rows: z.output<typeof recipie
         email: r.email,
         name: r.name,
         org: r.org,
-        tags: r.tags ?? [],
         ccEmails: r.cc ?? [],
         fields: (r.fields ?? undefined) as Prisma.InputJsonValue | undefined,
       })),
@@ -125,7 +121,6 @@ async function upsertContacts(workspaceId: string, rows: z.output<typeof recipie
         data: {
           ...(r.name && { name: r.name }),
           ...(r.org && { org: r.org }),
-          tags: [...new Set([...prev.tags, ...(r.tags ?? [])])],
           ccEmails: [...new Set([...prev.ccEmails, ...(r.cc ?? [])])],
           fields: { ...((prev.fields as Record<string, string>) ?? {}), ...(r.fields ?? {}) },
         },
@@ -182,14 +177,7 @@ export async function saveCampaign(input: CampaignInput): Promise<SaveResult> {
     return { ok: false, error: `Attachments add up to more than ${MAX_TOTAL_BYTES / 1024 / 1024} MB. Remove one.` };
   }
 
-  const fromCsv = await upsertContacts(workspace.id, data.recipients);
-  const fromTags = data.contactTags.length
-    ? await db.contact.findMany({
-        where: { workspaceId: workspace.id, tags: { hasSome: data.contactTags } },
-        select: { id: true },
-      })
-    : [];
-  const contactIds = [...new Set([...fromCsv, ...fromTags.map((c) => c.id)])].slice(0, MAX_RECIPIENTS);
+  const contactIds = (await upsertContacts(workspace.id, data.recipients)).slice(0, MAX_RECIPIENTS);
   const contacts = await db.contact.findMany({
     where: { id: { in: contactIds } },
     select: { id: true, email: true },

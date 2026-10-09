@@ -12,7 +12,7 @@ import { PageBody, PageHeader } from "@/components/dashboard/page-header";
 import { LiveRefresh } from "@/components/ui/live-refresh";
 import { LocalTime } from "@/components/ui/local-time";
 import { ResetOnNavigate } from "@/components/ui/reset-on-navigate";
-import { campaignStats, contactTagCounts, listTemplates, senderAccounts } from "@/lib/campaign-data";
+import { campaignStats, listTemplates, senderAccounts } from "@/lib/campaign-data";
 import { db } from "@/lib/db";
 import { kickQueueIfDue, sentInLastDay } from "@/lib/queue";
 import { cn } from "@/lib/utils";
@@ -30,9 +30,8 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
   if (!campaign) notFound();
 
   if (campaign.status === "DRAFT") {
-    const [accounts, tags, templates, attachments, messages] = await Promise.all([
+    const [accounts, templates, attachments, messages] = await Promise.all([
       senderAccounts(user.id),
-      contactTagCounts(workspace.id),
       listTemplates(workspace.id),
       db.attachment.findMany({
         where: { campaignId: id },
@@ -44,7 +43,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
         orderBy: { createdAt: "asc" },
         select: {
           toEmail: true,
-          contact: { select: { name: true, org: true, tags: true, ccEmails: true, fields: true } },
+          contact: { select: { name: true, org: true, ccEmails: true, fields: true } },
         },
       }),
     ]);
@@ -73,7 +72,6 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
               email: m.toEmail,
               name: m.contact?.name ?? undefined,
               org: m.contact?.org ?? undefined,
-              tags: m.contact?.tags,
               cc: m.contact?.ccEmails.length ? m.contact.ccEmails : undefined,
               fields: (m.contact?.fields as Record<string, string> | null) ?? undefined,
             }))}
@@ -81,7 +79,6 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
             templates={templates}
             workspaceId={workspace.id}
             accounts={accounts}
-            tags={tags}
             senderName={user.name ?? ""}
           />
           </ResetOnNavigate>
