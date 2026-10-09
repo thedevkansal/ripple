@@ -71,7 +71,7 @@ const KIND_STYLE: Record<Kind, { dot: string; text: string }> = {
 
 export function RippleRadar() {
   const reduceMotion = useReducedMotion();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(FEED_SIZE - 1);
 
   useEffect(() => {
     const id = setInterval(() => setStep((s) => s + 1), STEP_MS);
@@ -166,7 +166,8 @@ export function RippleRadar() {
         className="relative -mt-[14%] ml-auto w-full max-w-[380px] overflow-hidden rounded-2xl border border-line-strong bg-ink-raised/80 p-1.5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.8)] backdrop-blur-md"
         aria-live="off"
       >
-        <ul className="flex flex-col">
+        {/* Fixed height: a growing feed would re-center the headline beside it. */}
+        <ul className="flex h-[168px] flex-col">
           <AnimatePresence initial={false} mode="popLayout">
             {feed.map((item) => {
               const r = RECIPIENTS[item.who];
