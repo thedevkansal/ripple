@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { AiError, editEmail, type EmailEdit, verifyKey } from "@/lib/ai";
+import { AiError, editEmail, type EmailEdit, listModels, verifyKey } from "@/lib/ai";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { requireUser, requireWorkspace } from "@/lib/workspace";
@@ -81,4 +81,24 @@ export async function aiEditEmail(input: z.input<typeof editInput>): Promise<AiE
     if (err instanceof AiError) return { ok: false, error: err.message };
     throw err;
   }
+}
+
+/** Models the user's key can use, for the picker in the editor. */
+export async function aiModels(): Promise<string[]> {
+  const user = await requireUser();
+  const conn = await db.aiKey.findUnique({ where: { userId: user.id } });
+  if (!conn) return [];
+  return listModels(conn.provider, decrypt(conn.encryptedKey));
+}
+
+/** Switches the model prompt edits use. Only models the key lists are accepted. */
+export async function setAiModel(model: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const conn = await db.aiKey.findUnique({ where: { userId: user.id } });
+  if (!conn) return { ok: false, error: "Connect an AI key in Settings first." };
+  const available = await listModels(conn.provider, decrypt(conn.encryptedKey));
+  if (!available.includes(model)) return { ok: false, error: "That model isn't available on your key." };
+  await db.aiKey.update({ where: { userId: user.id }, data: { model } });
+  revalidatePath("/dashboard/settings");
+  return { ok: true };
 }

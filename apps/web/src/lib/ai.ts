@@ -91,6 +91,31 @@ async function pickGeminiModel(key: string, model?: string) {
   return pick;
 }
 
+// Chat models only: drop audio, image, embedding, realtime and similar variants.
+const NOT_CHAT = /(audio|realtime|transcribe|tts|image|embed|search|codex|vision|live|aqa|robotics|computer|moderation|instruct|nano-banana)/i;
+
+/** Text models this key can use, for the model picker. Best effort: an empty list just hides the choice. */
+export async function listModels(provider: AiProvider, key: string): Promise<string[]> {
+  const ids: string[] = [];
+  try {
+    if (provider === "ANTHROPIC") {
+      for await (const m of anthropic(key).models.list()) ids.push(m.id);
+    } else if (provider === "OPENAI") {
+      for await (const m of openai(key).models.list()) if (/^(gpt-5|o\d)/.test(m.id)) ids.push(m.id);
+      ids.sort().reverse();
+    } else {
+      for await (const m of await gemini(key).models.list()) {
+        const id = m.name?.replace(/^models\//, "");
+        if (id?.startsWith("gemini-") && m.supportedActions?.includes("generateContent")) ids.push(id);
+      }
+      ids.sort().reverse();
+    }
+  } catch {
+    return [];
+  }
+  return ids.filter((id) => !NOT_CHAT.test(id)).slice(0, 20);
+}
+
 export const editSchema = z.object({
   subject: z.string().describe("The full subject line."),
   body: z.string().describe("The full email body in Ripple's plain-text format."),

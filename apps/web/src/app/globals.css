@@ -109,10 +109,13 @@ body {
   background: color-mix(in oklab, var(--glow) 25%, transparent);
 }
 
-:focus-visible {
-  outline: 2px solid var(--glow);
-  outline-offset: 3px;
-  border-radius: 6px;
+/* In the base layer so a utility like focus-visible:outline-none can still override it. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--glow);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
 }
 
 .tabular {
