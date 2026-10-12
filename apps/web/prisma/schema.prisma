@@ -100,15 +100,18 @@ model Member {
   @@id([userId, workspaceId])
 }
 
-/// Shareable link that adds whoever opens it to a workspace.
+/// Adds someone to a workspace. Without an email it's a shareable link anyone can use; with one
+/// it was emailed to that address, only that account can accept it, and it works once.
 model Invite {
   id          String    @id @default(cuid())
   workspaceId String
   token       String    @unique
   role        Role      @default(MEMBER)
+  email       String?
   createdById String
   expiresAt   DateTime
   revokedAt   DateTime?
+  acceptedAt  DateTime?
   createdAt   DateTime  @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

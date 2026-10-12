@@ -1,4 +1,4 @@
-import { Mail, Plug, UserPlus } from "lucide-react";
+import { Link2, Mail, Plug, UserPlus } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -8,6 +8,7 @@ import { buttonClass } from "@/components/ui/button";
 import { LocalTime } from "@/components/ui/local-time";
 import { db } from "@/lib/db";
 import { appUrl } from "@/lib/google";
+import { INVITE_TTL_DAYS } from "@/lib/invite-email";
 import { canManage, requireWorkspace } from "@/lib/workspace";
 import {
   createInvite,
@@ -16,6 +17,7 @@ import {
   removeMember,
   renameWorkspace,
   revokeInvite,
+  sendEmailInvites,
   updateDailyLimit,
 } from "../actions";
 import { revokeExtension } from "../extension/actions";
@@ -51,7 +53,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
     }),
     manage
       ? db.invite.findMany({
-          where: { workspaceId: workspace.id, revokedAt: null, expiresAt: { gt: new Date() } },
+          where: { workspaceId: workspace.id, revokedAt: null, acceptedAt: null, expiresAt: { gt: new Date() } },
           orderBy: { createdAt: "desc" },
         })
       : Promise.resolve([]),
@@ -170,9 +172,64 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
 
         {manage && (
           <div className="border-t border-line bg-ink-sunken/40 px-5 py-5">
-            <ActionForm action={createInvite} className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <UserPlus className="size-4 text-glow" />
-              <p className="mr-auto text-sm">Invite with a link</p>
+              <p className="text-sm font-medium">Invite by email</p>
+            </div>
+            {accounts.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">
+                Invites are sent from your own Gmail.{" "}
+                <a href="/api/gmail/connect" className="text-glow hover:underline">
+                  Connect Gmail
+                </a>{" "}
+                to email them, or share a link below.
+              </p>
+            ) : (
+              <ActionForm action={sendEmailInvites} resetOnSuccess className="mt-3 flex flex-wrap items-center gap-2">
+                <label htmlFor="invite-emails" className="sr-only">
+                  Email addresses
+                </label>
+                <input
+                  id="invite-emails"
+                  name="emails"
+                  placeholder="aditi@iitb.ac.in, rahul@gmail.com"
+                  autoComplete="off"
+                  className={`${inputClass} min-w-0 flex-1 basis-64`}
+                />
+                <label htmlFor="invite-email-role" className="sr-only">
+                  Role
+                </label>
+                <select id="invite-email-role" name="role" defaultValue="MEMBER" className={inputClass}>
+                  <option value="MEMBER">as member</option>
+                  <option value="ADMIN">as admin</option>
+                </select>
+                {accounts.length === 1 ? (
+                  <input type="hidden" name="gmailAccountId" value={accounts[0].id} />
+                ) : (
+                  <>
+                    <label htmlFor="invite-from" className="sr-only">
+                      Send from
+                    </label>
+                    <select id="invite-from" name="gmailAccountId" className={`${inputClass} max-w-[14rem]`}>
+                      {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          from {a.email}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                <SubmitButton size="sm">Send invites</SubmitButton>
+                <p className="basis-full text-xs text-faint">
+                  Sent from {accounts.length === 1 ? accounts[0].email : "the Gmail you pick"}. Each invite works once,
+                  only for that address, for {INVITE_TTL_DAYS} days.
+                </p>
+              </ActionForm>
+            )}
+
+            <ActionForm action={createInvite} className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+              <Link2 className="size-4 text-muted" />
+              <p className="mr-auto text-sm text-muted">Or share a link anyone can use</p>
               <label htmlFor="invite-role" className="sr-only">
                 Role
               </label>
@@ -180,7 +237,9 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
                 <option value="MEMBER">as member</option>
                 <option value="ADMIN">as admin</option>
               </select>
-              <SubmitButton size="sm">Create link</SubmitButton>
+              <SubmitButton size="sm" variant="secondary">
+                Create link
+              </SubmitButton>
             </ActionForm>
 
             {invites.length > 0 && (
@@ -192,11 +251,19 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
                       key={inv.id}
                       className="flex flex-wrap items-center gap-3 rounded-xl border border-line px-3 py-2.5"
                     >
-                      <code className="min-w-0 flex-1 truncate text-xs text-muted">{url}</code>
+                      {inv.email ? (
+                        <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                          <Mail className="size-3.5 shrink-0 text-faint" />
+                          <span className="truncate">{inv.email}</span>
+                          <span className="shrink-0 text-xs text-faint">invited</span>
+                        </span>
+                      ) : (
+                        <code className="min-w-0 flex-1 truncate text-xs text-muted">{url}</code>
+                      )}
                       <span className="text-xs text-faint">
                         {inv.role.toLowerCase()}, expires <LocalTime date={inv.expiresAt} format="date" />
                       </span>
-                      <CopyButton value={url} />
+                      {!inv.email && <CopyButton value={url} />}
                       <form action={revokeInvite.bind(null, inv.id)}>
                         <SubmitButton size="sm" variant="ghost">
                           Revoke

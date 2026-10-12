@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { auth, signIn } from "@/auth";
+import { auth, signIn, signOut } from "@/auth";
 import { Logo } from "@/components/brand/logo";
 import { SubmitButton } from "@/components/dashboard/forms";
 import { acceptInvite } from "@/app/dashboard/actions";
@@ -34,20 +34,51 @@ async function InviteBody({ params }: { params: PageProps<"/invite/[token]">["pa
       where: { token },
       select: {
         revokedAt: true,
+        acceptedAt: true,
         expiresAt: true,
         role: true,
+        email: true,
         workspace: { select: { name: true, _count: { select: { members: true } } } },
       },
     }),
   ]);
 
-  if (!invite || invite.revokedAt || invite.expiresAt < new Date()) {
+  if (!invite || invite.revokedAt || invite.acceptedAt || invite.expiresAt < new Date()) {
     return (
       <>
         <h1 className="mt-8 text-2xl font-semibold tracking-[-0.03em]">This invite no longer works</h1>
         <p className="mt-2 text-sm text-muted">
-          It was revoked or has expired. Ask the person who sent it for a new link.
+          {invite?.acceptedAt
+            ? "It has already been used. If that was you, open your dashboard."
+            : "It was revoked or has expired. Ask the person who sent it for a new one."}
         </p>
+        {invite?.acceptedAt && (
+          <Link href="/dashboard" className="mt-6 inline-block text-sm text-glow hover:underline">
+            Go to dashboard
+          </Link>
+        )}
+      </>
+    );
+  }
+
+  const signedInAs = session?.user?.email?.toLowerCase();
+  if (invite.email && signedInAs && signedInAs !== invite.email) {
+    return (
+      <>
+        <h1 className="mt-8 text-2xl font-semibold tracking-[-0.03em]">Join {invite.workspace.name}</h1>
+        <p className="mt-2 text-sm text-muted">
+          This invite is for <span className="text-text">{invite.email}</span>, but you’re signed in as{" "}
+          <span className="text-text">{signedInAs}</span>. Switch accounts to accept it.
+        </p>
+        <form
+          action={async () => {
+            "use server";
+            await signOut({ redirectTo: `/invite/${token}` });
+          }}
+          className="mt-8"
+        >
+          <SubmitButton size="lg">Sign out and switch</SubmitButton>
+        </form>
       </>
     );
   }
@@ -68,7 +99,11 @@ async function InviteBody({ params }: { params: PageProps<"/invite/[token]">["pa
         <form
           action={async () => {
             "use server";
-            await signIn("google", { redirectTo: `/invite/${token}` });
+            await signIn(
+              "google",
+              { redirectTo: `/invite/${token}` },
+              invite.email ? { login_hint: invite.email } : undefined,
+            );
           }}
           className="mt-8"
         >

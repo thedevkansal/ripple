@@ -7,7 +7,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { signOut } from "@/auth";
 import { db } from "@/lib/db";
-import { revokeRefreshToken } from "@/lib/google";
+import { GmailSendError, sendViaGmail } from "@/lib/gmail-send";
+import { accessTokenFor, appUrl, GoogleAuthError, revokeRefreshToken } from "@/lib/google";
+import { INVITE_TTL_DAYS, inviteEmail } from "@/lib/invite-email";
 import {
   canManage,
   requireUser,
@@ -15,7 +17,6 @@ import {
   WORKSPACE_COOKIE,
 } from "@/lib/workspace";
 
-const INVITE_TTL_DAYS = 7;
 const MAX_DAILY_LIMIT = 400; // Gmail allows 500/day on personal accounts; stay clear of it.
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -100,6 +101,114 @@ export async function createInvite(_: ActionResult | null, form: FormData): Prom
   return { ok: true, message: "Invite link created." };
 }
 
+const MAX_EMAIL_INVITES = 20;
+
+/** Emails a personal invite to each address, from the inviter's own connected Gmail. */
+export async function sendEmailInvites(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  const { user, workspace, role } = await requireWorkspace();
+  if (!canManage(role)) return { ok: false, error: "Only owners and admins can invite people." };
+  const inviteRole = roleSchema.safeParse(form.get("role"));
+  if (!inviteRole.success) return { ok: false, error: "Pick a role." };
+
+  const emails = [
+    ...new Set(
+      String(form.get("emails") ?? "")
+        .split(/[\s,;]+/)
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+  if (!emails.length) return { ok: false, error: "Add at least one email address." };
+  const bad = emails.filter((e) => !z.email().safeParse(e).success);
+  if (bad.length) return { ok: false, error: `Not a valid email: ${bad.slice(0, 3).join(", ")}` };
+  if (emails.length > MAX_EMAIL_INVITES) return { ok: false, error: `Invite up to ${MAX_EMAIL_INVITES} people at a time.` };
+
+  const account = await db.gmailAccount.findFirst({
+    where: { id: String(form.get("gmailAccountId") ?? ""), userId: user.id },
+  });
+  if (!account) return { ok: false, error: "Pick one of your connected Gmail accounts to send from." };
+  if (account.needsReconnect) return { ok: false, error: `Reconnect ${account.email} before sending from it.` };
+
+  const existing = await db.member.findMany({
+    where: { workspaceId: workspace.id, user: { email: { in: emails, mode: "insensitive" } } },
+    select: { user: { select: { email: true } } },
+  });
+  const already = new Set(existing.map((m) => m.user.email.toLowerCase()));
+  const toInvite = emails.filter((e) => !already.has(e));
+  if (!toInvite.length) {
+    return { ok: false, error: already.size === 1 ? "They're already in this workspace." : "They're all already in this workspace." };
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await accessTokenFor(account.encryptedRefreshToken);
+  } catch (err) {
+    if (err instanceof GoogleAuthError && err.needsReconnect) {
+      await db.gmailAccount.update({ where: { id: account.id }, data: { needsReconnect: true } });
+      return { ok: false, error: `Google signed ${account.email} out. Reconnect it and try again.` };
+    }
+    return { ok: false, error: "Couldn't reach Gmail. Try again in a moment." };
+  }
+
+  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000);
+  const sent: string[] = [];
+  const failed: string[] = [];
+  for (const email of toInvite) {
+    // Inviting the same address again resends the pending invite instead of piling up new ones.
+    const pending = await db.invite.findFirst({
+      where: { workspaceId: workspace.id, email, revokedAt: null, acceptedAt: null, expiresAt: { gt: new Date() } },
+    });
+    const invite = pending
+      ? await db.invite.update({ where: { id: pending.id }, data: { role: inviteRole.data, expiresAt } })
+      : await db.invite.create({
+          data: {
+            workspaceId: workspace.id,
+            token: generateToken(),
+            role: inviteRole.data,
+            email,
+            createdById: user.id,
+            expiresAt,
+          },
+        });
+
+    const content = inviteEmail({
+      inviter: user.name ?? account.email,
+      workspace: workspace.name,
+      role: inviteRole.data,
+      url: `${appUrl()}/invite/${invite.token}`,
+      days: INVITE_TTL_DAYS,
+    });
+    try {
+      await sendViaGmail(accessToken, {
+        from: { email: account.email, name: user.name },
+        to: { email },
+        ...content,
+      });
+      sent.push(email);
+    } catch (err) {
+      failed.push(email);
+      if (!pending) await db.invite.delete({ where: { id: invite.id } });
+      if (err instanceof GmailSendError && (err.kind === "auth" || err.kind === "quota")) {
+        if (err.kind === "auth") {
+          await db.gmailAccount.update({ where: { id: account.id }, data: { needsReconnect: true } });
+        }
+        failed.push(...toInvite.slice(toInvite.indexOf(email) + 1));
+        break;
+      }
+    }
+  }
+
+  revalidatePath("/dashboard/settings");
+  const parts = [];
+  if (sent.length) parts.push(`Invite sent to ${sent.length === 1 ? sent[0] : `${sent.length} people`}.`);
+  if (already.size) parts.push(`${already.size} already in the workspace.`);
+  if (failed.length) {
+    const msg = `Couldn't send to ${failed.join(", ")}. ${parts.join(" ")}`.trim();
+    return { ok: false, error: msg };
+  }
+  return { ok: true, message: parts.join(" ") };
+}
+
 export async function revokeInvite(inviteId: string) {
   const { workspace, role } = await requireWorkspace();
   if (!canManage(role)) return;
@@ -126,7 +235,17 @@ export async function removeMember(userId: string) {
 export async function acceptInvite(token: string) {
   const user = await requireUser();
   const invite = await db.invite.findUnique({ where: { token } });
-  if (!invite || invite.revokedAt || invite.expiresAt < new Date()) redirect(`/invite/${token}`);
+  if (!invite || invite.revokedAt || invite.acceptedAt || invite.expiresAt < new Date()) redirect(`/invite/${token}`);
+
+  if (invite.email) {
+    // Emailed invites belong to one address and work once.
+    if (invite.email !== user.email?.toLowerCase()) redirect(`/invite/${token}`);
+    const { count } = await db.invite.updateMany({
+      where: { id: invite.id, acceptedAt: null },
+      data: { acceptedAt: new Date() },
+    });
+    if (count === 0) redirect(`/invite/${token}`);
+  }
 
   await db.member.upsert({
     where: { userId_workspaceId: { userId: user.id, workspaceId: invite.workspaceId } },
