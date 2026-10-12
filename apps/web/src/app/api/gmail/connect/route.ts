@@ -16,5 +16,7 @@ export async function GET(request: Request) {
     maxAge: 600,
   });
 
-  return Response.redirect(gmailConsentUrl(state, session.user.email ?? undefined), 302);
+  // ?account= preselects the mailbox when reconnecting one that isn't the sign-in address.
+  const hint = new URL(request.url).searchParams.get("account") ?? session.user.email ?? undefined;
+  return Response.redirect(gmailConsentUrl(state, hint), 302);
 }

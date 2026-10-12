@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { encrypt } from "@/lib/crypto";
 import { db } from "@/lib/db";
-import { exchangeCode, GMAIL_SEND_SCOPE, GMAIL_STATE_COOKIE } from "@/lib/google";
+import { exchangeCode, GMAIL_READ_SCOPE, GMAIL_SEND_SCOPE, GMAIL_STATE_COOKIE } from "@/lib/google";
 
 function back(request: NextRequest, result: string) {
   return Response.redirect(new URL(`/dashboard/settings?gmail=${result}`, request.url), 302);
@@ -28,10 +28,11 @@ export async function GET(request: NextRequest) {
     if (!refreshToken || !email) return back(request, "failed");
 
     const encryptedRefreshToken = encrypt(refreshToken);
+    const canRead = grantedScopes.includes(GMAIL_READ_SCOPE);
     await db.gmailAccount.upsert({
       where: { userId_email: { userId: session.user.id, email } },
-      create: { userId: session.user.id, email, encryptedRefreshToken },
-      update: { encryptedRefreshToken },
+      create: { userId: session.user.id, email, encryptedRefreshToken, canRead },
+      update: { encryptedRefreshToken, canRead, needsReconnect: false },
     });
     return back(request, "connected");
   } catch (err) {

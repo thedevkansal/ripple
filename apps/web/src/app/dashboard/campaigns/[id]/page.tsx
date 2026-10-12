@@ -110,6 +110,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
   const progress = s.total ? ((s.sent + s.failed + s.cancelled) / s.total) * 100 : 0;
   const hasFiles = campaign.linkAttachments && files.length > 0;
   const fileOpeners = rows.filter((r) => r.fileOpens > 0).length;
+  const repliers = rows.filter((r) => r.repliedAt).length;
 
   // The email as the first recipient received it (tracking removed).
   const previewHtml = textToHtml(renderTemplate(campaign.body, sampleVars).output, {
@@ -171,10 +172,11 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
         </Banner>
       )}
 
-      <section className={cn("mt-8 grid grid-cols-2 gap-3", hasFiles ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
+      <section className={cn("mt-8 grid grid-cols-2 gap-3", hasFiles ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
         <Stat label="Sent" value={`${s.sent}`} sub={`of ${s.total}`} />
         <Stat label="Opened" value={pct(s.opened, s.sent)} sub={people(s.opened)} />
         <Stat label="Clicked" value={pct(s.clicked, s.sent)} sub={people(s.clicked)} />
+        <Stat label="Replied" value={pct(repliers, s.sent)} sub={people(repliers)} />
         {hasFiles && <Stat label="Opened files" value={pct(fileOpeners, s.sent)} sub={people(fileOpeners)} />}
         <Stat
           label={s.failed ? "Failed" : "Waiting"}

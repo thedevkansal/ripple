@@ -169,7 +169,7 @@ async function sendOne(
       (a) => a !== message.toEmail && a !== from.email,
     );
 
-    const { id } = await sendViaGmail(accessToken, {
+    const { id, threadId } = await sendViaGmail(accessToken, {
       from,
       to: { email: message.toEmail, name: message.contact?.name },
       cc,
@@ -181,7 +181,7 @@ async function sendOne(
     const sentAt = new Date();
     await db.message.update({
       where: { id: messageId },
-      data: { status: "SENT", sentAt, subject, cc, gmailMessageId: id, error: null },
+      data: { status: "SENT", sentAt, subject, cc, gmailMessageId: id, gmailThreadId: threadId, error: null },
     });
     if (!campaign.startedAt || campaign.status !== "SENDING") {
       await db.campaign.update({

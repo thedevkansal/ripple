@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 
 // Media upload takes raw RFC 2822 up to 35 MB, so attachments fit.
 const SEND_URL = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
+// Replies go through the JSON endpoint, the only one that takes the thread to file them in.
+const SEND_JSON_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
 
 const isAscii = (s: string) => /^[\x20-\x7e]*$/.test(s);
 
@@ -45,6 +47,9 @@ export interface OutgoingEmail {
   html: string;
   text: string;
   attachments?: MailAttachment[];
+  /** Message-ID being answered, so mail apps show this as a reply in the same conversation. */
+  inReplyTo?: string;
+  references?: string[];
 }
 
 const boundary = () => `rpl_${randomBytes(12).toString("hex")}`;
@@ -70,6 +75,8 @@ export function buildMime(email: OutgoingEmail): string {
     `To: ${formatAddress(clean(email.to.email), email.to.name && clean(email.to.name))}`,
     ...(email.cc?.length ? [`Cc: ${email.cc.map((a) => clean(a)).join(", ")}`] : []),
     `Subject: ${encodeHeader(clean(email.subject))}`,
+    ...(email.inReplyTo ? [`In-Reply-To: ${clean(email.inReplyTo)}`] : []),
+    ...(email.references?.length ? [`References: ${email.references.map(clean).join(" ")}`] : []),
     "MIME-Version: 1.0",
   ];
 
@@ -111,15 +118,26 @@ export class GmailSendError extends Error {
   }
 }
 
-export async function sendViaGmail(accessToken: string, email: OutgoingEmail): Promise<{ id: string }> {
+export async function sendViaGmail(
+  accessToken: string,
+  email: OutgoingEmail,
+  options: { threadId?: string } = {},
+): Promise<{ id: string; threadId: string }> {
   let res: Response;
   try {
-    res = await fetch(SEND_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "message/rfc822" },
-      body: buildMime(email),
-      cache: "no-store",
-    });
+    res = options.threadId
+      ? await fetch(SEND_JSON_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ raw: Buffer.from(buildMime(email)).toString("base64url"), threadId: options.threadId }),
+          cache: "no-store",
+        })
+      : await fetch(SEND_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "message/rfc822" },
+          body: buildMime(email),
+          cache: "no-store",
+        });
   } catch (err) {
     throw new GmailSendError("transient", `Network error: ${(err as Error).message}`);
   }

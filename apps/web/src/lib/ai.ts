@@ -14,6 +14,9 @@ import {
   PERSONAL_SYSTEM,
   type PersonalInput,
   personalMessage,
+  REPLY_SYSTEM,
+  type ReplyInput,
+  replyMessage,
 } from "@/lib/ai-instructions";
 import { decrypt } from "@/lib/crypto";
 
@@ -214,59 +217,70 @@ export async function editEmail(
   }
 }
 
-/** Writes one recipient's {{personal_line}}, optionally after a web search about them. */
-export async function writePersonalLine(
-  conn: { provider: AiProvider; encryptedKey: string; model: string },
-  input: PersonalInput,
-): Promise<string> {
+type Conn = { provider: AiProvider; encryptedKey: string; model: string };
+
+/** One plain-text answer from the user's model, optionally after a web search. */
+async function generateText(conn: Conn, system: string, prompt: string, { research = false } = {}): Promise<string> {
   const key = decrypt(conn.encryptedKey);
-  let text = "";
   try {
     if (conn.provider === "ANTHROPIC") {
       const fallback = FALLBACK_MODELS.has(conn.model);
       const res = await anthropic(key).beta.messages.create({
         model: conn.model,
-        max_tokens: 4000,
-        system: PERSONAL_SYSTEM,
-        messages: [{ role: "user", content: personalMessage(input) }],
+        max_tokens: 8000,
+        system,
+        messages: [{ role: "user", content: prompt }],
         ...(CURRENT_CLAUDE.test(conn.model) ? { output_config: { effort: "low" as const } } : {}),
-        ...(input.research ? { tools: [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 3 }] } : {}),
+        ...(research ? { tools: [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 3 }] } : {}),
         ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
       });
-      if (res.stop_reason === "refusal") throw new AiError("Claude declined to write this line.");
-      // With web search the answer comes after the search results; the last text run is the line.
+      if (res.stop_reason === "refusal") throw new AiError("Claude declined this request.");
+      // With web search the answer comes after the search results; the last text run is it.
       const lastTool = res.content.findLastIndex((b) => b.type !== "text");
-      text = res.content
+      return res.content
         .slice(lastTool + 1)
         .map((b) => (b.type === "text" ? b.text : ""))
         .join("");
-    } else if (conn.provider === "GEMINI") {
+    }
+    if (conn.provider === "GEMINI") {
       const res = await gemini(key).models.generateContent({
         model: conn.model,
-        contents: personalMessage(input),
-        config: { systemInstruction: PERSONAL_SYSTEM, ...(input.research ? { tools: [{ googleSearch: {} }] } : {}) },
+        contents: prompt,
+        config: { systemInstruction: system, ...(research ? { tools: [{ googleSearch: {} }] } : {}) },
       });
       if (res.promptFeedback?.blockReason || res.candidates?.[0]?.finishReason === "SAFETY") {
-        throw new AiError("Gemini declined to write this line.");
+        throw new AiError("Gemini declined this request.");
       }
-      text = res.text ?? "";
-    } else {
-      const res = await openai(key).responses.create({
-        model: conn.model,
-        instructions: PERSONAL_SYSTEM,
-        input: personalMessage(input),
-        ...(input.research ? { tools: [{ type: "web_search" as const }] } : {}),
-      });
-      text = res.output_text;
+      return res.text ?? "";
     }
+    const res = await openai(key).responses.create({
+      model: conn.model,
+      instructions: system,
+      input: prompt,
+      ...(research ? { tools: [{ type: "web_search" as const }] } : {}),
+    });
+    return res.output_text;
   } catch (err) {
     if (err instanceof AiError) throw err;
     const msg = explain(err, conn.provider);
     if (msg) throw new AiError(msg, statusOf(err) === 429);
-    console.error("Personal line failed", err);
-    throw new AiError("Couldn't write this line. Try again.");
+    console.error("AI request failed", err);
+    throw new AiError("The AI request failed. Try again.");
   }
-  const line = cleanPersonalLine(text);
+}
+
+/** Writes one recipient's {{personal_line}}, optionally after a web search about them. */
+export async function writePersonalLine(conn: Conn, input: PersonalInput): Promise<string> {
+  const line = cleanPersonalLine(
+    await generateText(conn, PERSONAL_SYSTEM, personalMessage(input), { research: input.research }),
+  );
   if (!line) throw new AiError("The AI returned an empty line. Try again.");
   return line;
+}
+
+/** Drafts a reply in an email conversation. */
+export async function draftReply(conn: Conn, input: ReplyInput): Promise<string> {
+  const text = (await generateText(conn, REPLY_SYSTEM, replyMessage(input))).trim();
+  if (!text) throw new AiError("The AI returned an empty draft. Try again.");
+  return text;
 }

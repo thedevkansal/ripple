@@ -46,7 +46,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
     searchParams,
     db.gmailAccount.findMany({
       where: { userId: user.id },
-      select: { id: true, email: true, dailyLimit: true, createdAt: true },
+      select: { id: true, email: true, dailyLimit: true, createdAt: true, canRead: true },
       orderBy: { createdAt: "asc" },
     }),
     db.member.findMany({
@@ -99,8 +99,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
       >
         {accounts.length === 0 ? (
           <p className="px-5 py-6 text-sm text-muted">
-            No Gmail connected yet. Ripple asks only for permission to send email. It can’t read your
-            inbox.
+            No Gmail connected yet. Ripple asks to send email and to read mail so it can find replies to the
+            emails it sent. It only opens those conversations, and you can untick reading on Google’s screen.
           </p>
         ) : (
           <ul>
@@ -108,7 +108,19 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
               <li key={a.id} className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4 last:border-0">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{a.email}</p>
-                  <p className="text-sm text-faint">Connected <LocalTime date={a.createdAt} format="date" /></p>
+                  <p className="text-sm text-faint">
+                    Connected <LocalTime date={a.createdAt} format="date" />
+                    {a.canRead ? (
+                      " · replies on"
+                    ) : (
+                      <>
+                        {" · "}
+                        <a href={`/api/gmail/connect?account=${encodeURIComponent(a.email)}`} className="text-glow hover:underline">
+                          Allow replies
+                        </a>
+                      </>
+                    )}
+                  </p>
                 </div>
                 <ActionForm action={updateDailyLimit} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="accountId" value={a.id} />

@@ -122,3 +122,39 @@ export function cleanPersonalLine(text: string) {
     .trim()
     .slice(0, 600);
 }
+
+// ─── Replies ─────────────────────────────────────────────────────────
+
+export type ReplyInput = {
+  /** The user's own name, to sign as. */
+  senderName: string;
+  /** The conversation so far, oldest first. */
+  thread: { from: string; date: string; text: string; fromMe: boolean }[];
+  /** What the user wants to say; may be empty. */
+  instruction: string;
+  /** Text the user already typed, to improve rather than replace. */
+  draft: string;
+};
+
+export const REPLY_SYSTEM = `You draft email replies for the user inside Ripple. The user sent an outreach email and the other person replied; you write the user's next message in that conversation.
+
+- Answer what the other person actually said: their questions, dates, conditions and tone.
+- Follow the user's instruction when there is one. If they already started a draft, improve it and keep their points.
+- Never invent facts, dates, prices, links or commitments the user didn't give. If something needed is missing, leave a short placeholder in square brackets like [time] for the user to fill in.
+- Write plain text: short paragraphs, no subject line, no markdown headings. Match the other person's formality and language.
+- Start with a natural greeting using their first name when known, and end with a short sign-off and the user's first name.
+- Reply with the email text only.`;
+
+export function replyMessage(input: ReplyInput) {
+  const thread = input.thread
+    .map((m) => `<message from="${m.fromMe ? `${input.senderName} (the user)` : m.from}" date="${m.date}">\n${m.text}\n</message>`)
+    .join("\n\n");
+  return [
+    `The user is ${input.senderName}.`,
+    "",
+    `Conversation, oldest first:\n${thread}`,
+    "",
+    input.instruction.trim() ? `What the user wants to say: ${input.instruction.trim()}` : "Write the most helpful next reply.",
+    ...(input.draft.trim() ? ["", `The user's draft so far:\n${input.draft.trim()}`] : []),
+  ].join("\n");
+}

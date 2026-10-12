@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { processQueue } from "@/lib/queue";
+import { syncStaleAccounts } from "@/lib/replies";
 
 export const maxDuration = 60;
 
@@ -23,14 +24,19 @@ const AUTH_HINTS = {
 };
 
 /**
- * Drains the send queue. Called every minute by an external cron (cron-job.org, GitHub Actions)
+ * Drains the send queue, then checks for replies with whatever time is left. Called every minute by an external cron (cron-job.org, GitHub Actions)
  * with `Authorization: Bearer $CRON_SECRET`. GET and POST both work, since cron services default to GET.
  */
 async function handle(request: Request) {
   const auth = checkAuth(request);
   if (auth !== "ok") return Response.json({ error: "unauthorized", hint: AUTH_HINTS[auth] }, { status: 401 });
-  const run = await processQueue({ budgetMs: 50_000 });
-  return Response.json(run, { headers: { "Cache-Control": "no-store" } });
+  const started = Date.now();
+  const run = await processQueue({ budgetMs: 40_000 });
+  const replies = await syncStaleAccounts({ budgetMs: Math.max(0, 52_000 - (Date.now() - started)) }).catch((err) => {
+    console.error("reply sync failed", err);
+    return null;
+  });
+  return Response.json({ ...run, replies }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export { handle as GET, handle as POST };

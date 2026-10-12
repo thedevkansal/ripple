@@ -40,6 +40,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/dashboard/campa
       "First open",
       "Last open",
       "Only automatic loads",
+      "Replied",
     ],
     ...rows.map((r) => [
       r.name,
@@ -54,6 +55,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/dashboard/campa
       t(r.firstOpenAt),
       t(r.lastOpenAt),
       r.onlyPrefetched ? "yes" : "",
+      t(r.repliedAt),
     ]),
   ]);
 

@@ -7,7 +7,9 @@ const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 
 export const GMAIL_STATE_COOKIE = "rpl_gstate";
 export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
-const SCOPES = ["openid", "email", GMAIL_SEND_SCOPE];
+/** Lets Ripple find and show replies to the emails it sent. People can untick it and still send. */
+export const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const SCOPES = ["openid", "email", GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE];
 
 function clientCredentials() {
   const id = process.env.AUTH_GOOGLE_ID;

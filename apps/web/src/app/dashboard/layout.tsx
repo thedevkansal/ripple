@@ -5,6 +5,7 @@ import { LogoMark, Logo } from "@/components/brand/logo";
 import { SidebarNav, SidebarNavList } from "@/components/dashboard/sidebar-nav";
 import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { db } from "@/lib/db";
 import { requireWorkspace } from "@/lib/workspace";
 import { signOutAction } from "./actions";
 
@@ -19,7 +20,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <Workspaces />
         </Suspense>
         <Suspense fallback={<SidebarNavList pathname={null} />}>
-          <SidebarNav />
+          <Nav />
         </Suspense>
         <div className="mt-auto">
           <Suspense fallback={<div className="h-12" />}>
@@ -41,7 +42,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <ThemeToggle />
         </div>
         <Suspense fallback={<SidebarNavList orientation="horizontal" pathname={null} />}>
-          <SidebarNav orientation="horizontal" />
+          <Nav orientation="horizontal" />
         </Suspense>
       </header>
 
@@ -50,6 +51,14 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       </main>
     </div>
   );
+}
+
+async function Nav({ orientation }: { orientation?: "horizontal" }) {
+  const { user, workspace } = await requireWorkspace();
+  const unread = await db.reply.count({
+    where: { readAt: null, message: { workspaceId: workspace.id, gmailAccount: { userId: user.id } } },
+  });
+  return <SidebarNav orientation={orientation} badges={{ "/dashboard/replies": unread }} />;
 }
 
 async function Workspaces() {

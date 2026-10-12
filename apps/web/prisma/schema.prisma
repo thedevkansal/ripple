@@ -129,6 +129,9 @@ model GmailAccount {
   dailyLimit            Int      @default(25)
   /// Set when Google rejects the refresh token; sending pauses until the user reconnects.
   needsReconnect        Boolean  @default(false)
+  /// Granted read access, so Ripple can find replies to the emails it sent.
+  canRead               Boolean  @default(false)
+  repliesSyncedAt       DateTime?
   createdAt             DateTime @default(now())
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -245,6 +248,9 @@ model Message {
   status         MessageStatus @default(QUEUED)
   error          String?
   gmailMessageId String?
+  gmailThreadId  String?
+  /// When the recipient first replied (found by the reply sync).
+  repliedAt      DateTime?
   /// When a queue worker claimed it; stale claims are retried.
   claimedAt      DateTime?
   /// Who sent it from Gmail with the extension (campaign emails have a campaign instead).
@@ -255,6 +261,7 @@ model Message {
   selfViewAt     DateTime?
   /// AI-written opening line for this recipient in this campaign; fills {{personal_line}}.
   personalLine   String?
+  replies        Reply[]
   sentAt         DateTime?
   createdAt      DateTime      @default(now())
 
@@ -270,6 +277,7 @@ model Message {
   @@index([campaignId])
   @@index([status, createdAt])
   @@index([gmailAccountId, sentAt])
+  @@index([gmailAccountId, gmailThreadId])
 }
 
 model Link {
@@ -362,4 +370,22 @@ model AiKey {
   updatedAt    DateTime   @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// A reply to an email Ripple sent, found in the sender's Gmail. Only the sender can open it; the
+/// thread itself is read live from Gmail, this is the index for the inbox list.
+model Reply {
+  id             String    @id @default(cuid())
+  messageId      String
+  gmailMessageId String    @unique
+  fromEmail      String
+  fromName       String?
+  snippet        String
+  receivedAt     DateTime
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, receivedAt])
 }

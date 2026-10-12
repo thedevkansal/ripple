@@ -67,3 +67,20 @@ describe("buildMime cc", () => {
     expect(mime).not.toMatch(/^Bcc:/m);
   });
 });
+
+describe("buildMime reply headers", () => {
+  test("threads the reply and keeps the headers injection-safe", () => {
+    const mime = buildMime({
+      from: { email: "dev@gmail.com" },
+      to: { email: "p@x.com" },
+      subject: "Re: Hi",
+      html: "<p>Sure</p>",
+      text: "Sure",
+      inReplyTo: "<abc@mail.gmail.com>\r\nBcc: evil@x.com",
+      references: ["<first@x.com>", "<abc@mail.gmail.com>"],
+    });
+    expect(mime).toContain("\r\nIn-Reply-To: <abc@mail.gmail.com> Bcc: evil@x.com\r\n");
+    expect(mime).toContain("\r\nReferences: <first@x.com> <abc@mail.gmail.com>\r\n");
+    expect(mime).not.toMatch(/^Bcc:/m);
+  });
+});

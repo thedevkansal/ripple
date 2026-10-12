@@ -20,10 +20,12 @@ export interface RecipientRowData {
   clicks: number;
   fileOpens: number;
   lastOpenAt: string | null;
+  /** When they first replied; the conversation itself is only visible to the sender. */
+  repliedAt: string | null;
 }
 
 type SortKey = "name" | "status" | "sentAt" | "opens" | "clicks" | "fileOpens" | "lastOpenAt";
-type Filter = "all" | "opened" | "unopened" | "clicked" | "files" | "failed";
+type Filter = "all" | "opened" | "unopened" | "clicked" | "replied" | "files" | "failed";
 
 const STATUS_ORDER: Record<MessageStatus, number> = { SENT: 0, SENDING: 1, QUEUED: 2, FAILED: 3, CANCELLED: 4 };
 
@@ -40,6 +42,7 @@ const FILTERS: { key: Filter; label: string; test: (r: RecipientRowData) => bool
   { key: "opened", label: "Opened", test: (r) => r.opens > 0 },
   { key: "unopened", label: "Not opened", test: (r) => r.status === "SENT" && r.opens === 0 },
   { key: "clicked", label: "Clicked", test: (r) => r.clicks > 0 },
+  { key: "replied", label: "Replied", test: (r) => !!r.repliedAt },
   { key: "files", label: "Opened files", test: (r) => r.fileOpens > 0 },
   { key: "failed", label: "Failed", test: (r) => r.status === "FAILED" },
 ];
@@ -205,6 +208,11 @@ export function RecipientsTable({ rows, showFiles }: { rows: RecipientRowData[];
                     <span className={state.className} title={m.status === "FAILED" ? (m.error ?? undefined) : undefined}>
                       {state.label}
                     </span>
+                    {m.repliedAt && (
+                      <span className="ml-2 rounded-md bg-glow/10 px-1.5 py-0.5 text-xs text-glow" title="They replied">
+                        Replied
+                      </span>
+                    )}
                   </td>
                   <td className="tabular px-3 py-3 text-muted">{m.sentAt ? <LocalTime date={m.sentAt} /> : "–"}</td>
                   <td className="tabular px-3 py-3 text-right">
