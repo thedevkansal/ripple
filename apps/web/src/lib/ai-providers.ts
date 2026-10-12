@@ -29,8 +29,9 @@ export const AI_PROVIDERS = {
     label: "Gemini",
     company: "Google",
     keyUrl: "https://aistudio.google.com/apikey",
-    keyPattern: /^AIza/,
-    keyPlaceholder: "AIza…",
+    // New AI Studio keys are "auth keys" (AQ.…); older ones start with AIza.
+    keyPattern: /^(AQ\.|AIza)/,
+    keyPlaceholder: "AQ.…",
     autoModelHint: "Newest Flash on your key",
     billing:
       "Free up to Google’s daily limit, no card needed. On the free tier Google may use your prompts and drafts to improve its models.",
