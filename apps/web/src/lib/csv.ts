@@ -8,6 +8,8 @@ export interface RecipientRow {
   /** Other addresses of the same person, CC'd on their email. */
   cc?: string[];
   fields?: Record<string, string>;
+  /** AI-written opening line for this campaign; fills {{personal_line}}. */
+  personal?: string;
 }
 
 export type ColumnRole = "email" | "cc" | "name" | "first" | "last" | "org" | "field";

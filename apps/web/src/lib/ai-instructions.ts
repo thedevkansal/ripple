@@ -67,3 +67,58 @@ export function parseChatAnswer(text: string): { subject: string; body: string }
   if (!body) return null;
   return { subject: subject[1].trim(), body };
 }
+
+// ─── Personal lines ──────────────────────────────────────────────────
+
+export type PersonalInput = {
+  /** What the user wants each line to do; may be empty. */
+  brief: string;
+  subject: string;
+  body: string;
+  recipient: { email: string; name?: string; org?: string; fields?: Record<string, string> };
+  /** Whether the model may search the web about the recipient first. */
+  research: boolean;
+};
+
+export const PERSONAL_SYSTEM = `You write one personal opening line for an outreach email sent with Ripple. The same email goes to many people; your line is the only part written for this one person, and it is placed right after the greeting.
+
+Rules:
+- One or two sentences, under 40 words. No greeting, no sign-off, no quotes around it, no merge fields, no placeholders.
+- Make it specific to this person: their role, company, work or something they did. Connect it to why the email is relevant to them.
+- Use only facts from the recipient details or, when web search is allowed, from what you found. Never invent achievements, numbers, news or quotes. If you know little, write a sincere line about their company or role instead of guessing.
+- Match the email's language and tone. Write like a person, not a marketer: no flattery, no "I hope this finds you well", no "I came across your profile".
+- Reply with the line only, nothing else.`;
+
+export function personalMessage(input: PersonalInput) {
+  const details = Object.entries({
+    email: input.recipient.email,
+    name: input.recipient.name,
+    company: input.recipient.org,
+    ...input.recipient.fields,
+  })
+    .filter(([, v]) => v)
+    .map(([k, v]) => `- ${k}: ${v}`)
+    .join("\n");
+  return [
+    `<email_subject>${input.subject}</email_subject>`,
+    `<email_body>\n${input.body}\n</email_body>`,
+    "",
+    `Recipient details:\n${details}`,
+    "",
+    ...(input.brief.trim() ? [`What the line should do: ${input.brief.trim()}`] : []),
+    input.research
+      ? "You may search the web for this person or their company first. Prefer recent, verifiable facts, and leave out anything you aren't sure is about this exact person."
+      : "Don't use outside knowledge about this person; use only the details above.",
+  ].join("\n");
+}
+
+/** Tidies a model's answer into a single clean line. */
+export function cleanPersonalLine(text: string) {
+  return text
+    .replace(/\[\d+\]|【[^】]*】/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^["“'‘]+|["”'’]+$/g, "")
+    .trim()
+    .slice(0, 600);
+}

@@ -23,6 +23,7 @@ const recipientSchema = z.object({
   org: z.string().trim().max(120).optional(),
   fields: z.record(z.string().max(60), z.string().max(500)).optional(),
   cc: z.array(z.email().transform((e) => e.toLowerCase())).max(10).optional(),
+  personal: z.string().trim().max(600).optional(),
 });
 export type RecipientInput = z.input<typeof recipientSchema>;
 
@@ -183,6 +184,8 @@ export async function saveCampaign(input: CampaignInput): Promise<SaveResult> {
     select: { id: true, email: true },
   });
 
+  const personalByEmail = new Map(data.recipients.map((r) => [r.email, r.personal]));
+
   const fields = {
     name: data.name,
     tag: data.tag || null,
@@ -219,6 +222,7 @@ export async function saveCampaign(input: CampaignInput): Promise<SaveResult> {
         contactId: c.id,
         toEmail: c.email,
         subject: data.subject,
+        personalLine: personalByEmail.get(c.email) || null,
         source: "WEB" as const,
       })),
     });
@@ -326,6 +330,7 @@ export async function sendTest(id: string): Promise<{ ok: true; to: string } | {
         name: sample.contact.name,
         org: sample.contact.org,
         fields: sample.contact.fields as Record<string, unknown> | null,
+        personal: sample.personalLine,
       })
     : { email: user.email };
 

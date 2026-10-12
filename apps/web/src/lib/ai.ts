@@ -7,10 +7,25 @@ import { ApiError as GeminiApiError, GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import type { AiProvider } from "@/generated/prisma/client";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
-import { EDIT_SYSTEM as SYSTEM, editMessage as userMessage } from "@/lib/ai-instructions";
+import {
+  cleanPersonalLine,
+  EDIT_SYSTEM as SYSTEM,
+  editMessage as userMessage,
+  PERSONAL_SYSTEM,
+  type PersonalInput,
+  personalMessage,
+} from "@/lib/ai-instructions";
 import { decrypt } from "@/lib/crypto";
 
-export class AiError extends Error {}
+export class AiError extends Error {
+  constructor(
+    message: string,
+    /** The provider is rate limiting; worth retrying after a pause. */
+    readonly rateLimited = false,
+  ) {
+    super(message);
+  }
+}
 
 const TIMEOUT_MS = 90_000;
 
@@ -18,13 +33,16 @@ const anthropic = (key: string) => new Anthropic({ apiKey: key, timeout: TIMEOUT
 const openai = (key: string) => new OpenAI({ apiKey: key, timeout: TIMEOUT_MS, maxRetries: 1 });
 const gemini = (key: string) => new GoogleGenAI({ apiKey: key, httpOptions: { timeout: TIMEOUT_MS } });
 
+function statusOf(err: unknown) {
+  return err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof GeminiApiError
+    ? (err.status as number | undefined)
+    : undefined;
+}
+
 /** Friendly message for a provider error, or null to rethrow. */
 function explain(err: unknown, provider: AiProvider): string | null {
   const name = AI_PROVIDERS[provider].company;
-  const status =
-    err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof GeminiApiError
-      ? (err.status as number | undefined)
-      : undefined;
+  const status = statusOf(err);
   // Google answers a bad key with 400 rather than 401.
   const badGoogleKey = status === 400 && /API key (not valid|expired)/i.test((err as Error).message);
   if (status === 401 || status === 403 || badGoogleKey) return `${name} rejected the API key. Check it in Settings.`;
@@ -194,4 +212,61 @@ export async function editEmail(
     console.error("AI edit failed", err);
     throw new AiError("The AI edit failed. Try again.");
   }
+}
+
+/** Writes one recipient's {{personal_line}}, optionally after a web search about them. */
+export async function writePersonalLine(
+  conn: { provider: AiProvider; encryptedKey: string; model: string },
+  input: PersonalInput,
+): Promise<string> {
+  const key = decrypt(conn.encryptedKey);
+  let text = "";
+  try {
+    if (conn.provider === "ANTHROPIC") {
+      const fallback = FALLBACK_MODELS.has(conn.model);
+      const res = await anthropic(key).beta.messages.create({
+        model: conn.model,
+        max_tokens: 4000,
+        system: PERSONAL_SYSTEM,
+        messages: [{ role: "user", content: personalMessage(input) }],
+        ...(CURRENT_CLAUDE.test(conn.model) ? { output_config: { effort: "low" as const } } : {}),
+        ...(input.research ? { tools: [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 3 }] } : {}),
+        ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+      });
+      if (res.stop_reason === "refusal") throw new AiError("Claude declined to write this line.");
+      // With web search the answer comes after the search results; the last text run is the line.
+      const lastTool = res.content.findLastIndex((b) => b.type !== "text");
+      text = res.content
+        .slice(lastTool + 1)
+        .map((b) => (b.type === "text" ? b.text : ""))
+        .join("");
+    } else if (conn.provider === "GEMINI") {
+      const res = await gemini(key).models.generateContent({
+        model: conn.model,
+        contents: personalMessage(input),
+        config: { systemInstruction: PERSONAL_SYSTEM, ...(input.research ? { tools: [{ googleSearch: {} }] } : {}) },
+      });
+      if (res.promptFeedback?.blockReason || res.candidates?.[0]?.finishReason === "SAFETY") {
+        throw new AiError("Gemini declined to write this line.");
+      }
+      text = res.text ?? "";
+    } else {
+      const res = await openai(key).responses.create({
+        model: conn.model,
+        instructions: PERSONAL_SYSTEM,
+        input: personalMessage(input),
+        ...(input.research ? { tools: [{ type: "web_search" as const }] } : {}),
+      });
+      text = res.output_text;
+    }
+  } catch (err) {
+    if (err instanceof AiError) throw err;
+    const msg = explain(err, conn.provider);
+    if (msg) throw new AiError(msg, statusOf(err) === 429);
+    console.error("Personal line failed", err);
+    throw new AiError("Couldn't write this line. Try again.");
+  }
+  const line = cleanPersonalLine(text);
+  if (!line) throw new AiError("The AI returned an empty line. Try again.");
+  return line;
 }

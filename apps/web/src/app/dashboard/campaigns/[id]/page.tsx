@@ -45,6 +45,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
         orderBy: { createdAt: "asc" },
         select: {
           toEmail: true,
+          personalLine: true,
           contact: { select: { name: true, org: true, ccEmails: true, fields: true } },
         },
       }),
@@ -77,6 +78,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
               org: m.contact?.org ?? undefined,
               cc: m.contact?.ccEmails.length ? m.contact.ccEmails : undefined,
               fields: (m.contact?.fields as Record<string, string> | null) ?? undefined,
+              personal: m.personalLine ?? undefined,
             }))}
             initialAttachments={attachments}
             templates={templates}

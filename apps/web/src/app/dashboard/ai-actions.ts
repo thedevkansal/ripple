@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { AiError, editEmail, type EmailEdit, listModels, verifyKey } from "@/lib/ai";
+import { AiError, editEmail, type EmailEdit, listModels, verifyKey, writePersonalLine } from "@/lib/ai";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { requireUser, requireWorkspace } from "@/lib/workspace";
@@ -101,4 +101,36 @@ export async function setAiModel(model: string): Promise<ActionResult> {
   await db.aiKey.update({ where: { userId: user.id }, data: { model } });
   revalidatePath("/dashboard/settings");
   return { ok: true };
+}
+
+const personalInput = z.object({
+  brief: z.string().max(1000),
+  subject: z.string().max(500),
+  body: z.string().max(20_000),
+  research: z.boolean(),
+  recipient: z.object({
+    email: z.string().max(254),
+    name: z.string().max(120).optional(),
+    org: z.string().max(120).optional(),
+    fields: z.record(z.string().max(60), z.string().max(500)).optional(),
+  }),
+});
+
+export type PersonalLineResult = { ok: true; line: string } | { ok: false; error: string; rateLimited?: boolean };
+
+/** Writes one recipient's {{personal_line}} with the user's own AI key. The editor calls it per row. */
+export async function aiPersonalLine(input: z.input<typeof personalInput>): Promise<PersonalLineResult> {
+  const { user } = await requireWorkspace();
+  const parsed = personalInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Those recipient details can't be used." };
+
+  const conn = await db.aiKey.findUnique({ where: { userId: user.id } });
+  if (!conn) return { ok: false, error: "Connect Claude, ChatGPT or Gemini in Settings first." };
+
+  try {
+    return { ok: true, line: await writePersonalLine(conn, parsed.data) };
+  } catch (err) {
+    if (err instanceof AiError) return { ok: false, error: err.message, rateLimited: err.rateLimited };
+    throw err;
+  }
 }

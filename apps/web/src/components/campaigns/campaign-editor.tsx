@@ -16,6 +16,7 @@ import {
 } from "@/app/dashboard/campaigns/actions";
 import { saveTemplate, type TemplateInfo } from "@/app/dashboard/templates/actions";
 import { AiPrompt } from "@/components/campaigns/ai-prompt";
+import { insertPersonalField, PersonalLines } from "@/components/campaigns/personal-lines";
 import { inputClass } from "@/components/dashboard/forms";
 import { Button } from "@/components/ui/button";
 import { ACCEPT_ATTR, type AttachmentInfo, attachmentPrefix, MAX_TOTAL_BYTES } from "@/lib/attachments";
@@ -110,6 +111,9 @@ export function CampaignEditor({
     }
     return { baseFields: ["email", "name", "company"].filter((k) => base.has(k)), customFields: [...custom] };
   }, [recipients, csvFields]);
+  // Offer {{personal_line}} once any recipient has one.
+  const hasPersonal = recipients.some((r) => r.personal?.trim());
+  const mergeFields = [...baseFields, ...customFields, ...(hasPersonal ? ["personal_line"] : [])];
 
   const ccList = ccText.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
   const badCc = ccList.filter((e) => !EMAIL_RE.test(e));
@@ -442,6 +446,18 @@ export function CampaignEditor({
 
         </Card>
 
+        {total > 0 && (
+          <Card title="Personal lines" aside={<span className="text-xs text-faint">Optional</span>}>
+            <PersonalLines
+              ai={ai}
+              recipients={recipients}
+              setRecipients={setRecipients}
+              draft={{ subject: form.subject, body: form.body }}
+              onInsertField={() => set("body", insertPersonalField(form.body))}
+            />
+          </Card>
+        )}
+
         <Card
           title="Message"
           aside={
@@ -471,7 +487,7 @@ export function CampaignEditor({
           <AiPrompt
             ai={ai}
             draft={{ subject: form.subject, body: form.body }}
-            fields={[...baseFields, ...customFields]}
+            fields={mergeFields}
             onChange={(d) => setForm((f) => ({ ...f, ...d }))}
           />
           <Field label="Subject">
@@ -488,17 +504,17 @@ export function CampaignEditor({
                 Body
               </label>
               <div className="flex flex-wrap gap-1.5">
-                {baseFields.length + customFields.length === 0 && (
+                {mergeFields.length === 0 && (
                   <span className="text-xs text-faint">Upload a list to insert its columns</span>
                 )}
-                {[...baseFields, ...customFields].map((k) => (
+                {mergeFields.map((k) => (
                   <button
                     key={k}
                     type="button"
                     onClick={() => insertField(k)}
                     className={cn(
                       "press rounded-md border px-2 py-0.5 text-xs",
-                      customFields.includes(k)
+                      !baseFields.includes(k)
                         ? "border-dusk/30 text-dusk hover:bg-dusk/10"
                         : "border-line-strong text-muted hover:text-text",
                     )}

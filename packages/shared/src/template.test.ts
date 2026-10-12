@@ -41,6 +41,13 @@ describe("contactVars", () => {
       talk_topic: "Fintech",
     });
     expect(v.empty).toBeUndefined();
+    expect(v.personal_line).toBeUndefined();
+  });
+
+  test("adds the campaign's personal line", () => {
+    expect(contactVars({ email: "p@x.com", personal: "  Loved your talk at Nasscom.  " }).personal_line).toBe(
+      "Loved your talk at Nasscom.",
+    );
   });
 });
 

@@ -149,6 +149,7 @@ async function sendOne(
         name: message.contact.name,
         org: message.contact.org,
         fields: message.contact.fields as Record<string, unknown> | null,
+        personal: message.personalLine,
       })
     : { email: message.toEmail };
 

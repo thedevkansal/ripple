@@ -20,6 +20,7 @@ export async function campaignReport(campaignId: string) {
       select: {
         id: true,
         toEmail: true,
+        personalLine: true,
         status: true,
         sentAt: true,
         error: true,
@@ -71,6 +72,7 @@ export async function campaignReport(campaignId: string) {
         name: sample.contact.name,
         org: sample.contact.org,
         fields: sample.contact.fields as Record<string, unknown> | null,
+        personal: sample.personalLine,
       })
     : { email: sample?.toEmail };
 

@@ -253,6 +253,8 @@ model Message {
   senderIp       String?
   /// Last time the sender viewed their own copy; proxy fetches right around it are theirs.
   selfViewAt     DateTime?
+  /// AI-written opening line for this recipient in this campaign; fills {{personal_line}}.
+  personalLine   String?
   sentAt         DateTime?
   createdAt      DateTime      @default(now())
 

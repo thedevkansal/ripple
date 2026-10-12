@@ -43,6 +43,8 @@ export interface ContactLike {
   name?: string | null;
   org?: string | null;
   fields?: Record<string, unknown> | null;
+  /** This campaign's AI-written line for the person, as {{personal_line}}. */
+  personal?: string | null;
 }
 
 export function contactVars(contact: ContactLike): MergeVars {
@@ -60,6 +62,7 @@ export function contactVars(contact: ContactLike): MergeVars {
     last_name: rest.join(" ") || undefined,
     org: contact.org ?? undefined,
     company: contact.org ?? undefined,
+    personal_line: contact.personal?.trim() || undefined,
   };
 }
 
