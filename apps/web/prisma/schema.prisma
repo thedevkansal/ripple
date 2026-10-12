@@ -24,6 +24,7 @@ model User {
   gmailAccounts GmailAccount[]
   extensionTokens ExtensionToken[]
   sentEmails    Message[]      @relation("SentEmails")
+  aiKey         AiKey?
 }
 
 model Account {
@@ -339,4 +340,23 @@ model ExtensionToken {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+enum AiProvider {
+  ANTHROPIC
+  OPENAI
+}
+
+/// A user's own Claude or ChatGPT API key, used for prompt edits in the campaign editor.
+model AiKey {
+  userId       String     @id
+  provider     AiProvider
+  encryptedKey String
+  /// Last characters of the key, to show which one is saved.
+  keyHint      String
+  model        String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

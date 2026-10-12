@@ -15,6 +15,7 @@ import {
   type CampaignInput,
 } from "@/app/dashboard/campaigns/actions";
 import { saveTemplate, type TemplateInfo } from "@/app/dashboard/templates/actions";
+import { AiPrompt } from "@/components/campaigns/ai-prompt";
 import { inputClass } from "@/components/dashboard/forms";
 import { Button } from "@/components/ui/button";
 import { ACCEPT_ATTR, type AttachmentInfo, attachmentPrefix, MAX_TOTAL_BYTES } from "@/lib/attachments";
@@ -47,6 +48,8 @@ export interface EditorProps {
   workspaceId: string;
   accounts: SenderAccount[];
   senderName: string;
+  /** The user's connected AI, for prompt edits. */
+  ai: { label: string; model: string } | null;
 }
 
 const SUGGESTED_TAGS = ["speaker", "sponsor", "investor", "partner", "mentor"];
@@ -62,6 +65,7 @@ export function CampaignEditor({
   workspaceId,
   accounts,
   senderName,
+  ai,
 }: EditorProps) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
@@ -464,6 +468,12 @@ export function CampaignEditor({
             </div>
           }
         >
+          <AiPrompt
+            ai={ai}
+            draft={{ subject: form.subject, body: form.body }}
+            fields={[...baseFields, ...customFields]}
+            onChange={(d) => setForm((f) => ({ ...f, ...d }))}
+          />
           <Field label="Subject">
             <input
               value={form.subject}

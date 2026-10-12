@@ -1,5 +1,6 @@
 import "server-only";
 import type { SenderAccount } from "@/components/campaigns/campaign-editor";
+import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { db } from "@/lib/db";
 import { sentInLastDay } from "@/lib/queue";
 
@@ -77,4 +78,10 @@ export async function listTemplates(workspaceId: string) {
     orderBy: { updatedAt: "desc" },
     select: { id: true, name: true, subject: true, body: true },
   });
+}
+
+/** The user's connected AI for prompt edits in the editor, if any. */
+export async function aiAssistant(userId: string) {
+  const key = await db.aiKey.findUnique({ where: { userId }, select: { provider: true, model: true } });
+  return key ? { label: AI_PROVIDERS[key.provider].label, model: key.model } : null;
 }

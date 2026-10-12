@@ -2,16 +2,17 @@ import type { Metadata } from "next";
 import { CampaignEditor } from "@/components/campaigns/campaign-editor";
 import { PageBody, PageHeader } from "@/components/dashboard/page-header";
 import { ResetOnNavigate } from "@/components/ui/reset-on-navigate";
-import { listTemplates, senderAccounts } from "@/lib/campaign-data";
+import { aiAssistant, listTemplates, senderAccounts } from "@/lib/campaign-data";
 import { requireWorkspace } from "@/lib/workspace";
 
 export const metadata: Metadata = { title: "New campaign" };
 
 export default async function NewCampaignPage() {
   const { user, workspace } = await requireWorkspace();
-  const [accounts, templates] = await Promise.all([
+  const [accounts, templates, ai] = await Promise.all([
     senderAccounts(user.id),
     listTemplates(workspace.id),
+    aiAssistant(user.id),
   ]);
   const usable = accounts.find((a) => !a.needsReconnect);
 
@@ -37,6 +38,7 @@ export default async function NewCampaignPage() {
             workspaceId={workspace.id}
             accounts={accounts}
             senderName={user.name ?? ""}
+            ai={ai}
           />
         </ResetOnNavigate>
       </div>

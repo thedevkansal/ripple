@@ -1,11 +1,13 @@
-import { Link2, Mail, Plug, UserPlus } from "lucide-react";
+import { Link2, Mail, Plug, Sparkles, UserPlus } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ActionForm, CopyButton, inputClass, SubmitButton } from "@/components/dashboard/forms";
 import { PageBody, PageHeader } from "@/components/dashboard/page-header";
 import { buttonClass } from "@/components/ui/button";
+import { AiKeyForm } from "@/components/settings/ai-key-form";
 import { LocalTime } from "@/components/ui/local-time";
+import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { db } from "@/lib/db";
 import { appUrl } from "@/lib/google";
 import { INVITE_TTL_DAYS } from "@/lib/invite-email";
@@ -20,6 +22,7 @@ import {
   sendEmailInvites,
   updateDailyLimit,
 } from "../actions";
+import { removeAiKey } from "../ai-actions";
 import { revokeExtension } from "../extension/actions";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -39,7 +42,7 @@ const GMAIL_RESULTS: Record<string, { ok: boolean; text: string }> = {
 export default async function SettingsPage({ searchParams }: PageProps<"/dashboard/settings">) {
   const { user, workspace, role } = await requireWorkspace();
   const manage = canManage(role);
-  const [{ gmail }, accounts, members, invites, extensions] = await Promise.all([
+  const [{ gmail }, accounts, members, invites, extensions, aiKey] = await Promise.all([
     searchParams,
     db.gmailAccount.findMany({
       where: { userId: user.id },
@@ -62,6 +65,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
       orderBy: { createdAt: "desc" },
       select: { id: true, label: true, createdAt: true, lastUsedAt: true },
     }),
+    db.aiKey.findUnique({ where: { userId: user.id }, select: { provider: true, model: true, keyHint: true } }),
   ]);
   const banner = typeof gmail === "string" ? GMAIL_RESULTS[gmail] : undefined;
 
@@ -133,6 +137,30 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
             ))}
           </ul>
         )}
+      </Section>
+
+      <Section
+        id="ai"
+        title="AI assistant"
+        description="Connect your own Claude or ChatGPT API key to write and edit campaign emails with prompts. Only you can use it."
+        action={
+          aiKey && (
+            <form action={removeAiKey}>
+              <SubmitButton size="sm" variant="danger">
+                Remove key
+              </SubmitButton>
+            </form>
+          )
+        }
+      >
+        {aiKey && (
+          <p className="flex items-center gap-2 border-b border-line px-5 py-3.5 text-sm">
+            <Sparkles className="size-4 text-glow" />
+            Connected to {AI_PROVIDERS[aiKey.provider].label} with key ending{" "}
+            <code className="text-muted">{aiKey.keyHint}</code>, using <code className="text-muted">{aiKey.model}</code>
+          </p>
+        )}
+        <AiKeyForm current={aiKey} />
       </Section>
 
       <Section

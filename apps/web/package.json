@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate dev"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@auth/prisma-adapter": "2.11.3",
     "@neondatabase/serverless": "^1.2.0",
     "@prisma/adapter-neon": "7.10.0",
@@ -29,6 +30,7 @@
     "motion": "^14.0.0",
     "next": "16.4.0",
     "next-auth": "5.0.0-beta.32",
+    "openai": "^7.32.0",
     "papaparse": "^5.7.0",
     "prisma": "7.10.0",
     "react": "19.3.0",

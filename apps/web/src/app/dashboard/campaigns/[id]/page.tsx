@@ -13,7 +13,7 @@ import { LiveRefresh } from "@/components/ui/live-refresh";
 import { buttonClass } from "@/components/ui/button";
 import { LocalTime } from "@/components/ui/local-time";
 import { ResetOnNavigate } from "@/components/ui/reset-on-navigate";
-import { campaignStats, listTemplates, senderAccounts } from "@/lib/campaign-data";
+import { aiAssistant, campaignStats, listTemplates, senderAccounts } from "@/lib/campaign-data";
 import { campaignReport } from "@/lib/campaign-report";
 import { db } from "@/lib/db";
 import { kickQueueIfDue, sentInLastDay } from "@/lib/queue";
@@ -32,7 +32,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
   if (!campaign) notFound();
 
   if (campaign.status === "DRAFT") {
-    const [accounts, templates, attachments, messages] = await Promise.all([
+    const [accounts, templates, attachments, messages, ai] = await Promise.all([
       senderAccounts(user.id),
       listTemplates(workspace.id),
       db.attachment.findMany({
@@ -48,6 +48,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
           contact: { select: { name: true, org: true, ccEmails: true, fields: true } },
         },
       }),
+      aiAssistant(user.id),
     ]);
     return (
       <PageBody>
@@ -82,6 +83,7 @@ export default async function CampaignPage({ params }: PageProps<"/dashboard/cam
             workspaceId={workspace.id}
             accounts={accounts}
             senderName={user.name ?? ""}
+            ai={ai}
           />
           </ResetOnNavigate>
         </div>
