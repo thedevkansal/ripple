@@ -142,7 +142,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/dashboa
       <Section
         id="ai"
         title="AI assistant"
-        description="Connect your own Claude or ChatGPT API key to write and edit campaign emails with prompts. Only you can use it."
+        description="Connect your own Claude, ChatGPT or Gemini API key to write and edit campaign emails with prompts. Only you can use it."
         action={
           aiKey && (
             <form action={removeAiKey}>

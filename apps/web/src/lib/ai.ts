@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
+import { ApiError as GeminiApiError, GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import type { AiProvider } from "@/generated/prisma/client";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
@@ -14,20 +15,29 @@ const TIMEOUT_MS = 90_000;
 
 const anthropic = (key: string) => new Anthropic({ apiKey: key, timeout: TIMEOUT_MS, maxRetries: 1 });
 const openai = (key: string) => new OpenAI({ apiKey: key, timeout: TIMEOUT_MS, maxRetries: 1 });
+const gemini = (key: string) => new GoogleGenAI({ apiKey: key, httpOptions: { timeout: TIMEOUT_MS } });
 
 /** Friendly message for a provider error, or null to rethrow. */
 function explain(err: unknown, provider: AiProvider): string | null {
   const name = AI_PROVIDERS[provider].company;
   const status =
-    err instanceof Anthropic.APIError || err instanceof OpenAI.APIError ? (err.status as number | undefined) : undefined;
-  if (status === 401 || status === 403) return `${name} rejected the API key. Check it in Settings.`;
+    err instanceof Anthropic.APIError || err instanceof OpenAI.APIError || err instanceof GeminiApiError
+      ? (err.status as number | undefined)
+      : undefined;
+  // Google answers a bad key with 400 rather than 401.
+  const badGoogleKey = status === 400 && /API key (not valid|expired)/i.test((err as Error).message);
+  if (status === 401 || status === 403 || badGoogleKey) return `${name} rejected the API key. Check it in Settings.`;
   if (status === 404) return `${name} doesn't offer that model to this key. Pick another in Settings.`;
   if (status === 429) return `${name} is rate limiting this key, or it's out of credit. Try again shortly.`;
   if (status === 400 && /credit|billing|balance/i.test((err as Error).message)) {
     return `This ${name} key is out of credit. Add some on the ${name} console.`;
   }
   if (status && status >= 500) return `${name} had a problem answering. Try again in a moment.`;
-  if (err instanceof Anthropic.APIConnectionError || err instanceof OpenAI.APIConnectionError) {
+  if (
+    err instanceof Anthropic.APIConnectionError ||
+    err instanceof OpenAI.APIConnectionError ||
+    (err instanceof TypeError && /fetch failed/i.test(err.message))
+  ) {
     return `Couldn't reach ${name}. Try again in a moment.`;
   }
   return null;
@@ -35,7 +45,7 @@ function explain(err: unknown, provider: AiProvider): string | null {
 
 /**
  * Checks the key works and settles which model to use: the one asked for, or the provider's
- * default (for OpenAI, the first preferred model the key can use).
+ * default (for OpenAI and Gemini, the first preferred model the key can use).
  */
 export async function verifyKey(provider: AiProvider, key: string, model?: string): Promise<string> {
   try {
@@ -44,6 +54,7 @@ export async function verifyKey(provider: AiProvider, key: string, model?: strin
       await anthropic(key).models.retrieve(id);
       return id;
     }
+    if (provider === "GEMINI") return await pickGeminiModel(key, model);
     const client = openai(key);
     if (model) {
       await client.models.retrieve(model);
@@ -60,6 +71,24 @@ export async function verifyKey(provider: AiProvider, key: string, model?: strin
     if (msg) throw new AiError(msg);
     throw err;
   }
+}
+
+async function pickGeminiModel(key: string, model?: string) {
+  const client = gemini(key);
+  if (model) {
+    await client.models.get({ model });
+    return model;
+  }
+  const available: string[] = [];
+  for await (const m of await client.models.list()) {
+    if (m.name && m.supportedActions?.includes("generateContent")) available.push(m.name.replace(/^models\//, ""));
+  }
+  // The newest stable "gemini-<version>-flash" the key offers (free-tier keys get Flash models).
+  const version = (id: string) => Number(/^gemini-(\d+(?:\.\d+)?)-flash$/.exec(id)?.[1] ?? NaN);
+  const newest = available.filter((id) => !Number.isNaN(version(id))).sort((a, b) => version(b) - version(a))[0];
+  const pick = newest ?? AI_PROVIDERS.GEMINI.models.find((m) => available.includes(m));
+  if (!pick) throw new AiError("Couldn't find a Gemini Flash model on this key. Type the model name you want to use.");
+  return pick;
 }
 
 export const editSchema = z.object({
@@ -129,6 +158,29 @@ export async function editEmail(
         throw new AiError("Claude's answer came back incomplete. Try again.");
       }
       return res.parsed_output;
+    }
+
+    if (conn.provider === "GEMINI") {
+      const schema = z.toJSONSchema(editSchema);
+      delete schema.$schema;
+      const res = await gemini(key).models.generateContent({
+        model: conn.model,
+        contents: userMessage(input),
+        config: { systemInstruction: SYSTEM, responseMimeType: "application/json", responseJsonSchema: schema },
+      });
+      const finish = res.candidates?.[0]?.finishReason;
+      if (finish === "SAFETY" || finish === "PROHIBITED_CONTENT" || res.promptFeedback?.blockReason) {
+        throw new AiError("Gemini declined this request. Try rewording it.");
+      }
+      let json: unknown;
+      try {
+        json = JSON.parse(res.text ?? "");
+      } catch {
+        json = null;
+      }
+      const parsed = editSchema.safeParse(json);
+      if (!parsed.success) throw new AiError("Gemini's answer came back incomplete. Try again.");
+      return parsed.data;
     }
 
     const res = await openai(key).responses.parse({

@@ -10,7 +10,7 @@ import { requireUser, requireWorkspace } from "@/lib/workspace";
 import type { ActionResult } from "./actions";
 
 const keySchema = z.object({
-  provider: z.enum(["ANTHROPIC", "OPENAI"]),
+  provider: z.enum(["ANTHROPIC", "OPENAI", "GEMINI"]),
   apiKey: z.string().trim().max(500),
   model: z.string().trim().max(80).regex(/^[\w.:-]*$/, "That doesn't look like a model name."),
 });
@@ -33,7 +33,7 @@ export async function saveAiKey(_: ActionResult | null, form: FormData): Promise
     if (!existing || existing.provider !== provider) return { ok: false, error: `Paste your ${info.company} API key.` };
     key = decrypt(existing.encryptedKey);
   } else if (!info.keyPattern.test(key)) {
-    return { ok: false, error: `That isn't an ${info.company} API key. Get one from the ${info.company} console.` };
+    return { ok: false, error: `That doesn't look like a ${info.company} API key. Copy it again from ${new URL(info.keyUrl).host}.` };
   }
 
   let resolved: string;
@@ -72,7 +72,7 @@ export async function aiEditEmail(input: z.input<typeof editInput>): Promise<AiE
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   const conn = await db.aiKey.findUnique({ where: { userId: user.id } });
-  if (!conn) return { ok: false, error: "Connect Claude or ChatGPT in Settings first." };
+  if (!conn) return { ok: false, error: "Connect Claude, ChatGPT or Gemini in Settings first." };
 
   try {
     const edit = await editEmail(conn, parsed.data);

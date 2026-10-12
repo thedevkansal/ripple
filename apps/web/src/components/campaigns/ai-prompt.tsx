@@ -40,7 +40,7 @@ export function AiPrompt({
     return (
       <p className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-line px-3.5 py-3 text-sm text-muted">
         <Sparkles className="size-4 text-glow" />
-        Write and edit this email with prompts using Claude or ChatGPT.
+        Write and edit this email with prompts using Claude, ChatGPT or Gemini.
         <Link href="/dashboard/settings#ai" className="text-glow hover:underline">
           Connect your API key
         </Link>

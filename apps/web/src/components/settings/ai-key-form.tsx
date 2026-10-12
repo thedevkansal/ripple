@@ -55,7 +55,7 @@ export function AiKeyForm({ current }: { current: { provider: AiProvider; model:
             type="password"
             autoComplete="off"
             spellCheck={false}
-            placeholder={sameProvider ? `Saved key ending ${current.keyHint}` : provider === "ANTHROPIC" ? "sk-ant-…" : "sk-…"}
+            placeholder={sameProvider ? `Saved key ending ${current.keyHint}` : info.keyPlaceholder}
             className={cn(inputClass, "w-full font-mono")}
           />
         </label>
@@ -66,7 +66,7 @@ export function AiKeyForm({ current }: { current: { provider: AiProvider; model:
             list={`models-${provider}`}
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={provider === "OPENAI" ? "Best GPT-5 on your key" : undefined}
+            placeholder={info.autoModelHint || undefined}
             autoComplete="off"
             spellCheck={false}
             className={cn(inputClass, "w-full font-mono")}
@@ -87,13 +87,12 @@ export function AiKeyForm({ current }: { current: { provider: AiProvider; model:
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-sm text-muted hover:text-text"
         >
-          Get an {info.company} API key
+          Get your {info.company} API key
           <ExternalLink className="size-3" />
         </a>
       </div>
       <p className="text-xs leading-relaxed text-faint">
-        Ripple checks the key, then stores it encrypted and uses it only when you ask for an edit. Usage is billed to
-        your {info.company} account. A {info.label} chat subscription doesn’t include API access.
+        Ripple checks the key, then stores it encrypted and uses it only when you ask for an edit. {info.billing}
       </p>
     </ActionForm>
   );

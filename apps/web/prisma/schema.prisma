@@ -345,9 +345,10 @@ model ExtensionToken {
 enum AiProvider {
   ANTHROPIC
   OPENAI
+  GEMINI
 }
 
-/// A user's own Claude or ChatGPT API key, used for prompt edits in the campaign editor.
+/// A user's own Claude, ChatGPT or Gemini API key, used for prompt edits in the campaign editor.
 model AiKey {
   userId       String     @id
   provider     AiProvider
