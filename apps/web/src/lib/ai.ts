@@ -7,6 +7,7 @@ import { ApiError as GeminiApiError, GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import type { AiProvider } from "@/generated/prisma/client";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
+import { EDIT_SYSTEM as SYSTEM, editMessage as userMessage } from "@/lib/ai-instructions";
 import { decrypt } from "@/lib/crypto";
 
 export class AiError extends Error {}
@@ -122,36 +123,6 @@ export const editSchema = z.object({
   summary: z.string().describe("One short sentence telling the user what you changed."),
 });
 export type EmailEdit = z.infer<typeof editSchema>;
-
-const SYSTEM = `You edit outreach emails inside Ripple, an email tool. The user is writing one email that is sent to many recipients, and gives you an instruction about it.
-
-Return the complete revised subject and body, not a diff. If the draft is empty, write a new email from the instruction.
-
-The body is plain text that Ripple turns into HTML:
-- A blank line starts a new paragraph. A single line break stays a line break.
-- [text](https://example.com) makes a link. Bare URLs also become links.
-- **text** makes bold. No other markdown, HTML, headings or bullet symbols other than "- ".
-- Merge fields look like {{field}} or {{field|fallback}} and are filled per recipient. Use only the fields listed as available. Give a fallback when a field may be empty in a greeting, as in {{first_name|there}}. Never invent field names or put placeholders like [Name] in square brackets.
-
-Keep every link and merge field the user already has unless the instruction says to change them. Keep the user's facts, names, numbers and dates; never make up new ones. If a fact is missing, write around it instead of guessing.
-Write like a person, not a marketing template: short sentences, a clear ask, no filler openers like "I hope this email finds you well".
-Only change what the instruction asks for. If it asks for one thing, leave the rest as it was.
-
-The summary is one plain sentence, under 20 words, addressed to the user.`;
-
-function userMessage(input: { instruction: string; subject: string; body: string; fields: string[] }) {
-  const fields = input.fields.length
-    ? input.fields.map((f) => `{{${f}}}`).join(", ")
-    : "none yet (no recipient list). Only {{first_name|there}} is safe to use.";
-  return [
-    `Available merge fields: ${fields}`,
-    "",
-    `<subject>${input.subject}</subject>`,
-    `<body>\n${input.body}\n</body>`,
-    "",
-    `Instruction: ${input.instruction}`,
-  ].join("\n");
-}
 
 // Models that take `effort` and server-side refusal fallbacks.
 const CURRENT_CLAUDE = /^claude-(opus|sonnet|haiku|fable)-5/;
